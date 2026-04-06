@@ -5,4 +5,5 @@ from .features2text_preprocessor import Features2TextTranslationProcessor
 from .image2text_preprocessor import Image2TextTranslationProcessor
 from .text2text_preprocessor import Text2TextTranslationProcessor
 from .video2text_preprocessor import Video2TextTranslationProcessor
+from .sign_clip_processor import SignCLIPProcessor
 from .utils import *
