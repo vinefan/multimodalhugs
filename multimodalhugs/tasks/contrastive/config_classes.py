@@ -1,53 +1,79 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from transformers import TrainingArguments
+
 
 @dataclass
 class ContrastiveModelArguments:
-    """
-    Minimal argument scaffold for contrastive model configuration.
-    """
-
     model_name_or_path: Optional[str] = field(
         default=None,
-        metadata={"help": "Optional pretrained model path for contrastive training."},
+        metadata={"help": "Path to a pretrained SignCLIP checkpoint."},
     )
-    config_path: Optional[str] = field(
+    config_name: Optional[str] = field(
         default=None,
-        metadata={"help": "Optional YAML config path for the contrastive task."},
+        metadata={"help": "Optional config path if different from model_name_or_path."},
     )
-    processor_path: Optional[str] = field(
+    cache_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Optional processor path used by the contrastive task."},
+        metadata={"help": "Where to cache pretrained model files."},
+    )
+    model_revision: str = field(
+        default="main",
+        metadata={"help": "Specific model revision to use when loading remote artifacts."},
+    )
+    token: Optional[str] = field(
+        default=None,
+        metadata={"help": "Authentication token used to access remote files."},
+    )
+    trust_remote_code: bool = field(
+        default=False,
+        metadata={"help": "Whether to trust remote code when loading Hugging Face artifacts."},
+    )
+
+
+@dataclass
+class ContrastiveProcessorArguments:
+    processor_name_or_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to a pretrained SignCLIP processor."},
     )
 
 
 @dataclass
 class ContrastiveDataArguments:
-    """
-    Minimal argument scaffold for contrastive dataset inputs.
-    """
-
-    dataset_name: Optional[str] = field(
+    dataset_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Dataset identifier or local dataset path."},
+        metadata={"help": "Path to a dataset saved with datasets.save_to_disk()."},
     )
-    train_file: Optional[str] = field(
+    max_train_samples: Optional[int] = field(
         default=None,
-        metadata={"help": "Optional training split file path."},
+        metadata={"help": "Optional cap on the number of training samples."},
     )
-    validation_file: Optional[str] = field(
+    max_eval_samples: Optional[int] = field(
         default=None,
-        metadata={"help": "Optional validation split file path."},
+        metadata={"help": "Optional cap on the number of evaluation samples."},
     )
 
 
 @dataclass
-class ContrastiveTrainingArguments:
-    """
-    Minimal argument scaffold for contrastive training control.
-    """
+class ExtraArguments:
+    config_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to YAML config file."},
+    )
+    setup_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional setup dir used to infer missing actor paths."},
+    )
 
+
+@dataclass
+class ContrastiveTrainingArguments(TrainingArguments):
+    early_stopping_patience: Optional[int] = field(
+        default=None,
+        metadata={"help": "Number of eval calls with no improvement before early stopping."},
+    )
     output_dir: str = field(
         default="outputs/contrastive",
         metadata={"help": "Directory used to store contrastive task outputs."},
