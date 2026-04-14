@@ -6,6 +6,9 @@ processed/
 wandb/
 
 
+# Claude Code
+.claude/worktrees/
+
 # JetBrains PyCharm IDE
 .idea/
 
@@ -52,3 +55,4 @@ claude.md
 MIGRATION.md
 Development_Progress.md
 fairseq_style_sign_clip/
+docs/archive/

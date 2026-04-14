@@ -16,44 +16,18 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-from multimodalhugs.processors import (
-    SignwritingProcessor,
-    Pose2TextTranslationProcessor,
-    Video2TextTranslationProcessor,
-    Image2TextTranslationProcessor,
-    Text2TextTranslationProcessor,
-    Features2TextTranslationProcessor
-)
-
+import multimodalhugs.processors  # triggers AutoProcessor registration for all processor classes
 import multimodalhugs.models
 from multimodalhugs import MultiLingualSeq2SeqTrainer
-
-Pose2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("pose2text_translation_processor", Pose2TextTranslationProcessor)
-
-Video2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("video2text_translation_processor", Video2TextTranslationProcessor)
-
-Features2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("features2text_translation_processor", Features2TextTranslationProcessor)
-
-SignwritingProcessor.register_for_auto_class()
-AutoProcessor.register("signwritting_processor", SignwritingProcessor)
-
-Image2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("image2text_translation_processor", Image2TextTranslationProcessor)
-
-Text2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("text2text_translation_processor", Text2TextTranslationProcessor)
 
 
 import logging
 import os
 import sys
 import argparse
+import warnings
 
 import datasets
-import evaluate
 import numpy as np
 from datasets import load_from_disk
 
@@ -113,16 +87,20 @@ def main():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    if training_args.should_log:
-        # The default of training_args.log_level is passive, so we set log level at info here to have that default.
-        transformers.utils.logging.set_verbosity_info()
+    _LOG_LEVEL = {"debug": logging.DEBUG, "info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
+    verbosity = _LOG_LEVEL.get((extra_args.verbosity_level or "warning").lower(), logging.WARNING)
 
-    log_level = training_args.get_process_log_level()
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
+    # Apply unified verbosity to all multimodalhugs loggers (main process only) and HF libraries.
+    pkg_level = verbosity if training_args.should_log else logging.WARNING
+    logger.setLevel(pkg_level)
+    logging.getLogger("multimodalhugs").setLevel(pkg_level)
+    datasets.utils.logging.set_verbosity(verbosity)
+    transformers.utils.logging.set_verbosity(verbosity)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
+
+    if verbosity > logging.INFO:
+        warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
 
     # Log on each process the small summary:
     logger.warning(
@@ -284,7 +262,13 @@ def main():
         )
     
     # Load metric(s)
+    # `import evaluate` is deferred here because `evaluate` transitively imports
+    # `transformers.pipelines` (including `video_classification`), which imports
+    # `av`. A top-level import would force `av` to be installed in every
+    # environment even when training without a metric. Deferring keeps the
+    # dependency conditional on `metric_name` actually being set.
     if training_args.metric_name is not None:
+        import evaluate
         metric_names = [m.strip() for m in training_args.metric_name.split(",")]
         metrics_list = [evaluate.load(name, cache_dir=model_args.cache_dir) for name in metric_names]
 
@@ -311,9 +295,6 @@ def main():
         return preds, labels
 
     def compute_metrics(eval_preds):
-        if not metrics_list:
-            return {}
-
         compute_metrics_tokenizer = tokenizer if tokenizer is not None else processor.tokenizer
         preds, labels = eval_preds
         if isinstance(preds, tuple):
@@ -329,7 +310,14 @@ def main():
         result = {}
         for metric, name in zip(metrics_list, metric_names):
             metric_result = metric.compute(predictions=decoded_preds, references=decoded_labels)
-            result[name] = round(metric_result.get("score", metric_result.get(name, 0.0)), 4)
+            for k, v in metric_result.items():
+                out_key = name if k == "score" else f"{name}_{k}"
+                if isinstance(v, (float, int)):
+                    result[out_key] = round(v, 4)
+                elif isinstance(v, list):
+                    result[out_key] = str(v)
+                else:
+                    result[out_key] = v
 
         prediction_lens = [np.count_nonzero(pred != compute_metrics_tokenizer.pad_token_id) for pred in preds]
         result["gen_len"] = round(np.mean(prediction_lens), 4)
@@ -347,15 +335,17 @@ def main():
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+        compute_metrics=(
+            compute_metrics if training_args.predict_with_generate and metrics_list else None
+        ),
         visualize_prediction_prob=training_args.visualize_prediction_prob,
         print_decoder_prompt_on_prediction=training_args.print_decoder_prompt_on_prediction,
         print_special_tokens_on_prediction=training_args.print_special_tokens_on_prediction,
         callbacks=callbacks_list
     )
 
-    logger.info(f"\n{model}\n")
-    logger.info(f"\n{print_module_details(model)}\n")
+    print(f"\n{model}\n")
+    print(f"\n{print_module_details(model)}\n")
 
     # Training
     if training_args.do_train:

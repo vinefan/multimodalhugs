@@ -1,11 +1,14 @@
 import os
-import math
 import torch
 import datasets
 
 from pathlib import Path
-from pose_format import Pose
-from pose_format.pose_body import EmptyPoseBody
+try:
+    from pose_format import Pose
+    from pose_format.pose_body import EmptyPoseBody
+    _POSE_FORMAT_AVAILABLE = True
+except ImportError:
+    _POSE_FORMAT_AVAILABLE = False
 from typing import Any, Union, Dict, Optional
 from datasets import load_dataset, Dataset, DatasetInfo, SplitGenerator, Features
 from dataclasses import dataclass, field
@@ -22,6 +25,7 @@ from multimodalhugs.data import (
 )
 from multimodalhugs.utils.utils import get_num_proc
 from multimodalhugs.utils.registry import register_dataset
+from multimodalhugs.processors.utils import SignalUnit
 
 from functools import lru_cache
 
@@ -42,19 +46,23 @@ class Pose2TextDataConfig(MultimodalDataConfig):
     """
     name: str = "Pose2TextDataConfig"
     max_frames: Optional[int] = field(
-        default=None, 
+        default=None,
         metadata={"help": "Pose related samples larger than this value will be filtered"}
     )
     min_frames: Optional[int] = field(
-        default=None, 
+        default=None,
         metadata={"help": "Pose related samples shorter than this value will be filtered"}
+    )
+    signal_start_end_unit: SignalUnit = field(
+        default=SignalUnit.MILLISECONDS,
+        metadata={"help": "Unit for signal_start/signal_end. Use SignalUnit.MILLISECONDS or SignalUnit.FRAMES."}
     )
     def __init__(self, cfg=None, **kwargs):
         """
         **Initialize the Pose2TextDataConfig.**
 
-        This constructor assigns configuration parameters based on the provided 
-        `cfg` object, if available. If no configuration is given, it falls back 
+        This constructor assigns configuration parameters based on the provided
+        `cfg` object, if available. If no configuration is given, it falls back
         to default values.
         """
         data_cfg = gather_appropriate_data_cfg(cfg)
@@ -64,6 +72,7 @@ class Pose2TextDataConfig(MultimodalDataConfig):
         # Assign new arguments from config if available
         self.max_frames = valid_config.get("max_frames", self.max_frames)
         self.min_frames = valid_config.get("min_frames", self.min_frames)
+        self.signal_start_end_unit = SignalUnit(valid_config.get("signal_start_end_unit", self.signal_start_end_unit))
 
         # Store any remaining kwargs (not expected by dataclass)
         self._extra_args = extra_args
@@ -101,6 +110,11 @@ class Pose2TextDataset(datasets.GeneratorBasedBuilder):
 
         If both are provided, keyword arguments take priority.
         """
+        if not _POSE_FORMAT_AVAILABLE:
+            raise ImportError(
+                "Pose2TextDataset requires 'pose-format'. "
+                'Install it with: pip install pose-format  or  pip install "multimodalhugs[pose]"'
+            )
         config, kwargs = resolve_and_update_config(Pose2TextDataConfig, config, kwargs)
         dataset_info = DatasetInfo(description="Dataset class for Pose2Text.")
         super().__init__(info=dataset_info, *args, **kwargs)
@@ -109,6 +123,7 @@ class Pose2TextDataset(datasets.GeneratorBasedBuilder):
         self.config = config
         self.max_frames = config.max_frames
         self.min_frames = config.min_frames
+        self.signal_start_end_unit = config.signal_start_end_unit
 
     def _info(self):
         """
@@ -202,6 +217,8 @@ class Pose2TextDataset(datasets.GeneratorBasedBuilder):
         # passed from _split_generators. load_dataset requires split="train" to avoid returning a dict of splits.
         dataset = load_dataset('csv', data_files=str(metafile_path), split='train', delimiter="\t", num_proc=get_num_proc()) 
 
+        signal_start_end_unit = self.signal_start_end_unit
+
         def mapping_function(sample):
             """
             **Process each sample by reading the pose buffer and calculating duration.**
@@ -212,12 +229,22 @@ class Pose2TextDataset(datasets.GeneratorBasedBuilder):
             **Returns:**
             - `dict`: The updated sample with the pose data duration.
             """
-            pose = read_pose(sample['signal'])
-            sample['DURATION'] = pose.body.duration_in_frames(
-                start_time=sample['signal_start'] or None, 
-                end_time=sample['signal_end'] or None
-            )
+            signal_start = sample['signal_start'] or 0
+            signal_end = sample['signal_end'] or 0
 
+            with open(sample['signal'], "rb") as f:
+                if signal_start_end_unit == SignalUnit.FRAMES:
+                    start_f = int(signal_start) if signal_start else None
+                    end_f = int(signal_end) if signal_end else None
+                    pose = Pose.read(f, start_frame=start_f, end_frame=end_f)
+                else:
+                    pose = Pose.read(
+                        f,
+                        start_time=signal_start or None,
+                        end_time=signal_end or None,
+                    )
+
+            sample['DURATION'] = pose.body.duration_in_frames()
             return sample
 
         # Filter out samples where the file path does not exist

@@ -24,40 +24,18 @@ from transformers import (
     set_seed,
     GenerationConfig,
 )
-from multimodalhugs.processors import (
-    SignwritingProcessor,
-    Pose2TextTranslationProcessor,
-    Image2TextTranslationProcessor,
-    Text2TextTranslationProcessor,
-    Features2TextTranslationProcessor
-)
-
+import multimodalhugs.processors  # triggers AutoProcessor registration for all processor classes
 import multimodalhugs.models
 from multimodalhugs import MultiLingualSeq2SeqTrainer
-
-Pose2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("pose2text_translation_processor", Pose2TextTranslationProcessor)
-
-Features2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("features2text_translation_processor", Features2TextTranslationProcessor)
-
-SignwritingProcessor.register_for_auto_class()
-AutoProcessor.register("signwritting_processor", SignwritingProcessor)
-
-Image2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("image2text_translation_processor", Image2TextTranslationProcessor)
-
-Text2TextTranslationProcessor.register_for_auto_class()
-AutoProcessor.register("text2text_translation_processor", Text2TextTranslationProcessor)
 
 
 import logging
 import os
 import sys
 import argparse
+import warnings
 
 import datasets
-import evaluate
 import numpy as np
 from datasets import load_from_disk
 
@@ -90,7 +68,7 @@ def postprocess_text(preds, labels):
     labels = [[label.strip()] for label in labels]
     return preds, labels
 
-def compute_metrics(eval_preds, tokenizer, metric):
+def compute_metrics(eval_preds, tokenizer, metrics_list, metric_names):
     preds, labels = eval_preds
     if isinstance(preds, tuple):
         preds = preds[0]
@@ -100,17 +78,19 @@ def compute_metrics(eval_preds, tokenizer, metric):
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-    raw_result = metric.compute(predictions=decoded_preds, references=decoded_labels)
-    result = dict(raw_result)
+    result = {}
+    for metric, name in zip(metrics_list, metric_names):
+        raw_result = metric.compute(predictions=decoded_preds, references=decoded_labels)
+        for k, v in raw_result.items():
+            out_key = name if k == "score" else f"{name}_{k}"
+            if isinstance(v, (float, int)):
+                result[out_key] = round(v, 4)
+            elif isinstance(v, list):
+                result[out_key] = str(v)
+            else:
+                result[out_key] = v
     prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-    result["gen_len"] = np.mean(prediction_lens)
-    # Convert values to rounded numbers or to a string if it is a list.
-    result = {
-        k: (round(v, 4) if isinstance(v, (float, int))
-            else ", ".join(str(x) for x in v) if isinstance(v, list)
-            else v)
-        for k, v in result.items()
-    }
+    result["gen_len"] = round(np.mean(prediction_lens), 4)
     return result
 
 # -----------------------------
@@ -174,14 +154,21 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    if training_args.should_log:
-        transformers.utils.logging.set_verbosity_info()
-    log_level = training_args.get_process_log_level()
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
+
+    _LOG_LEVEL = {"debug": logging.DEBUG, "info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
+    verbosity = _LOG_LEVEL.get((extra_args.verbosity_level or "warning").lower(), logging.WARNING)
+
+    # Apply unified verbosity to all multimodalhugs loggers (main process only) and HF libraries.
+    pkg_level = verbosity if training_args.should_log else logging.WARNING
+    logger.setLevel(pkg_level)
+    logging.getLogger("multimodalhugs").setLevel(pkg_level)
+    datasets.utils.logging.set_verbosity(verbosity)
+    transformers.utils.logging.set_verbosity(verbosity)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
+
+    if verbosity > logging.INFO:
+        warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
 
     # --- Load the test dataset ---
     if data_args.dataset_dir is not None:
@@ -265,7 +252,19 @@ def main():
         )
 
     # --- Load the evaluation metric ---
-    metric = evaluate.load(training_args.metric_name, cache_dir=model_args.cache_dir)
+    # `import evaluate` is deferred here and made conditional on `metric_name`
+    # being set. `evaluate` transitively imports `transformers.pipelines`
+    # (including `video_classification`), which in turn imports `av`. A
+    # top-level import would therefore require `av` in every environment just
+    # to *load* this module, even in pose-only or text-only setups that never
+    # use a metric. Keeping the import conditional means environments without
+    # `av` can still run generation as long as no metric is requested.
+    metrics_list = []
+    metric_names = []
+    if training_args.metric_name is not None:
+        import evaluate
+        metric_names = [m.strip() for m in training_args.metric_name.split(",")]
+        metrics_list = [evaluate.load(name, cache_dir=model_args.cache_dir) for name in metric_names]
     training_args.generation_config = generation_config if generation_config is not None else None
 
     if generate_args.generate_output_dir is not None: # HOTFIX to ensure the trainer stores all_results.json at generate_output_dir directory
@@ -277,8 +276,10 @@ def main():
         eval_dataset=test_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=lambda eval_preds: compute_metrics(eval_preds, tokenizer, metric)
-            if training_args.predict_with_generate else None,
+        compute_metrics=(
+            (lambda eval_preds: compute_metrics(eval_preds, tokenizer, metrics_list, metric_names))
+            if training_args.predict_with_generate and metrics_list else None
+        ),
         visualize_prediction_prob=training_args.visualize_prediction_prob
     )
 

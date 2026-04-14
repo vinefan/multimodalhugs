@@ -3,11 +3,17 @@
 import numpy as np
 import pytest
 import torch
+from transformers.feature_extraction_utils import BatchFeature
 
-from multimodalhugs.processors.image2text_preprocessor import (
+from multimodalhugs.processors.legacy.image2text_preprocessor import (
     Image2TextTranslationProcessor,
 )
 from tests.test_data.conftest import FONT_PATH
+
+
+def _modality_proc(processor):
+    """Return the underlying ImageModalityProcessor from the wrapper."""
+    return processor.slots[0].processor
 
 
 class TestImageToTensor:
@@ -19,7 +25,7 @@ class TestImageToTensor:
             height=64,
             normalize_image=False,
         )
-        tensor = processor._image_to_tensor(dummy_image_file)
+        tensor = _modality_proc(processor).process_sample(dummy_image_file)
         assert isinstance(tensor, torch.Tensor)
 
     def test_from_npy_file(self, tokenizer, tmp_path):
@@ -33,7 +39,7 @@ class TestImageToTensor:
             height=64,
             normalize_image=False,
         )
-        tensor = processor._image_to_tensor(path)
+        tensor = _modality_proc(processor).process_sample(path)
         assert isinstance(tensor, torch.Tensor)
         assert tensor.shape == (64, 64, 3)
 
@@ -46,7 +52,7 @@ class TestImageToTensor:
             normalize_image=False,
         )
         arr = np.random.rand(64, 64, 3).astype(np.float32)
-        tensor = processor._image_to_tensor(arr)
+        tensor = _modality_proc(processor).process_sample(arr)
         assert isinstance(tensor, torch.Tensor)
         assert tensor.shape == (64, 64, 3)
 
@@ -59,7 +65,7 @@ class TestImageToTensor:
             normalize_image=False,
         )
         t = torch.randn(3, 64, 64)
-        result = processor._image_to_tensor(t)
+        result = _modality_proc(processor).process_sample(t)
         assert torch.equal(result, t)
 
     def test_from_text_string(self, tokenizer):
@@ -71,7 +77,7 @@ class TestImageToTensor:
             height=224,
             normalize_image=False,
         )
-        tensor = processor._image_to_tensor("Hello world")
+        tensor = _modality_proc(processor).process_sample("Hello world")
         assert isinstance(tensor, torch.Tensor)
         # get_images returns (N_words, C, H, W) as float32
         assert tensor.ndim == 4
@@ -87,7 +93,7 @@ class TestImageToTensor:
             mean=[0.5, 0.5, 0.5],
             std=[0.5, 0.5, 0.5],
         )
-        tensor = processor._image_to_tensor(dummy_image_file)
+        tensor = _modality_proc(processor).process_sample(dummy_image_file)
         assert isinstance(tensor, torch.Tensor)
 
     def test_normalization_requires_mean_std(self, tokenizer):
@@ -118,7 +124,7 @@ class TestImageObtainMultimodalInputAndMasks:
                 "output": "test",
             },
         ]
-        result, _ = processor._obtain_multimodal_input_and_masks(batch)
+        result = processor(batch=batch)
         assert "input_frames" in result
         assert "attention_mask" in result
 
@@ -137,3 +143,58 @@ class TestImageTransformGetItemsOutput:
         }
         result = processor._transform_get_items_output(batch)
         assert isinstance(result["signal"][0], torch.Tensor)
+
+
+class TestImageProcessorCall:
+    """Full __call__() tests — the path exercised by DataCollatorMultimodalSeq2Seq."""
+
+    EXPECTED_KEYS = {
+        "input_frames",
+        "attention_mask",
+        "encoder_prompt",
+        "encoder_prompt_length_padding_mask",
+        "decoder_input_ids",
+        "decoder_attention_mask",
+    }
+
+    def test_returns_batch_feature(self, tokenizer, image_batch_samples):
+        """__call__ should return a BatchFeature (HF-compatible mapping)."""
+        processor = Image2TextTranslationProcessor(
+            tokenizer=tokenizer,
+            font_path=FONT_PATH,
+            width=64,
+            height=64,
+            normalize_image=False,
+        )
+        result = processor(batch=image_batch_samples)
+        assert isinstance(result, BatchFeature)
+
+    def test_has_all_expected_keys(self, tokenizer, image_batch_samples):
+        """Output must contain all keys consumed by the model forward()."""
+        processor = Image2TextTranslationProcessor(
+            tokenizer=tokenizer,
+            font_path=FONT_PATH,
+            width=64,
+            height=64,
+            normalize_image=False,
+        )
+        result = processor(batch=image_batch_samples)
+        for key in self.EXPECTED_KEYS:
+            assert key in result, f"Missing key: '{key}'"
+
+    def test_batch_dimensions_consistent(self, tokenizer, image_batch_samples):
+        """Every output tensor must have the same leading batch dimension."""
+        processor = Image2TextTranslationProcessor(
+            tokenizer=tokenizer,
+            font_path=FONT_PATH,
+            width=64,
+            height=64,
+            normalize_image=False,
+        )
+        result = processor(batch=image_batch_samples)
+        batch_size = len(image_batch_samples)
+        for key, val in result.items():
+            if isinstance(val, torch.Tensor):
+                assert val.shape[0] == batch_size, (
+                    f"Key '{key}' has batch dim {val.shape[0]}, expected {batch_size}"
+                )

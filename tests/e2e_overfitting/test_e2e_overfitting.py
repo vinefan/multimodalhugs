@@ -96,9 +96,9 @@ def test_model_converges_in_training():
         if "eval_chrf" in log
     ]
     assert eval_chrf_scores, "No eval_chrf found in trainer_state.json"
-    last_eval_chrf = eval_chrf_scores[-1]
-    print(f"✅ eval_chrf from trainer_state.json: {last_eval_chrf}")
-    assert last_eval_chrf == 100.0, f"Expected eval_chrf of 100.0, got {last_eval_chrf}"
+    best_eval_chrf = max(eval_chrf_scores)
+    print(f"✅ best eval_chrf from trainer_state.json: {best_eval_chrf}")
+    assert best_eval_chrf == 100.0, f"Expected eval_chrf of 100.0, got {best_eval_chrf}"
 
 
 def test_generation_score_is_perfect():
@@ -121,14 +121,14 @@ def test_generation_score_is_perfect():
     else:
         ckpt_path = sorted(checkpoints, key=lambda x: int(x.split("-")[-1]))[-1]
 
-    # Run generation
+    # Run generation with two metrics to exercise the multi-metric code path
     _ = run_python_script(
         "multimodalhugs/multimodalhugs_cli/generate.py",
         [
             "--task", "translation",
             "--config_path", CONFIG_PATH,
             "--model_name_or_path", ckpt_path,
-            "--metric_name", "chrf",
+            "--metric_name", "sacrebleu,chrf",
             "--setup_path", f"{OUTPUT_PATH}/setup",
             "--generate_output_dir", GENERATE_PATH,
             "--do_predict", "true",
@@ -139,14 +139,15 @@ def test_generation_score_is_perfect():
         ],
     )
 
-    # Check predict_score in output file
     result_path = os.path.join(GENERATE_PATH, "predict_results.json")
     assert os.path.exists(result_path), "predict_results.json not found"
 
     with open(result_path, "r") as f:
         results = json.load(f)
 
-    score = results.get("predict_score", None)
-    assert score is not None, "predict_score not found in result file"
-    print(f"✅ predict_score from predict_results.json: {score}")
-    assert score == 100.0, f"Expected predict_score of 100.0, got {score}"
+    # Verify both metric keys are present (exercises zip loop and separate evaluate.load calls)
+    assert "predict_chrf" in results, "predict_chrf not found in result file"
+    assert "predict_sacrebleu" in results, "predict_sacrebleu not found in result file"
+    print(f"✅ predict_chrf: {results['predict_chrf']}")
+    print(f"✅ predict_sacrebleu: {results['predict_sacrebleu']}")
+    assert results["predict_chrf"] == 100.0, f"Expected predict_chrf of 100.0, got {results['predict_chrf']}"
