@@ -86,3 +86,7 @@ class ContrastiveTrainingArguments(TrainingArguments):
         default=False,
         metadata={"help": "Whether to run evaluation."},
     )
+    run_retrieval_eval: bool = field(
+        default=False,
+        metadata={"help": "Whether to run dataset-wide retrieval evaluation in addition to eval_loss."},
+    )

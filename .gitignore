@@ -1,6 +1,7 @@
 checkpoints
 *.log
 *.lock
+!pixi.lock
 .env
 processed/
 wandb/
@@ -55,4 +56,23 @@ claude.md
 MIGRATION.md
 Development_Progress.md
 fairseq_style_sign_clip/
+SignCLIP.pdf
 docs/archive/
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# local SignCLIP migration artifacts
+output/
+data/metadata/sign_clip_pose/
+data/metadata/sign_clip_pose_fairseqish/
+scripts/generate_signclip_pose_metadata.py
+configs/sign_clip_setup.local.yaml
+configs/sign_clip_setup_hand.local.yaml
+configs/sign_clip_train.local.yaml
+configs/sign_clip_train_hand.local.yaml
+configs/sign_clip_train_overfit.local.yaml
+configs/sign_clip_train_hand_overfit.local.yaml
+configs/sign_clip_setup_hand_fairseqish.local.yaml
+configs/sign_clip_train_hand_fairseqish_overfit.local.yaml
+configs/sign_clip_train_hand_fairseqish_eval.local.yaml

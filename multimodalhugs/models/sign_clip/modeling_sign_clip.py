@@ -232,8 +232,14 @@ class SignCLIPModel(PreTrainedModel):
         batch_size = projected_tokens.size(0)
         input_embeddings = self.sign_encoder.get_input_embeddings()
 
-        cls_token_id = getattr(self.sign_encoder.config, "cls_token_id", 101)
-        sep_token_id = getattr(self.sign_encoder.config, "sep_token_id", 102)
+        cls_token_id = getattr(self.sign_encoder.config, "cls_token_id", None)
+        if cls_token_id is None:
+            cls_token_id = getattr(self.config, "cls_token_id", 101)
+
+        sep_token_id = getattr(self.sign_encoder.config, "sep_token_id", None)
+        if sep_token_id is None:
+            sep_token_id = getattr(self.config, "sep_token_id", 102)
+
         cls_tokens = torch.full(
             (batch_size, 1),
             cls_token_id,

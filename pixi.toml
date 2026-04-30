@@ -1,0 +1,14 @@
+[workspace]
+authors = ["fan <40661265+vinefan@users.noreply.github.com>"]
+channels = ["conda-forge"]
+name = "multimodalhugs"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+install-pose = "python -m pip install -e \".[pose]\""
+check-signclip-imports = "python -c \"from multimodalhugs.processors.sign_clip_processor import SignCLIPProcessor; from multimodalhugs.models.sign_clip.modeling_sign_clip import SignCLIPModel; print('sign_clip imports ok')\""
+
+[dependencies]
+python = "3.10.*"
+pip = ">=26.0.1,<27"

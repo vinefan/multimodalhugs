@@ -25,6 +25,7 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
         tokenizer: Optional[Any] = None,
         reduce_holistic_poses: bool = True,
         skip_frames_stride: Optional[int] = None,
+        pose_components: Optional[list[str]] = None,
         **kwargs,
     ):
         obtainables_list = kwargs.pop(
@@ -38,6 +39,7 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
         )
         self.reduce_holistic_poses = reduce_holistic_poses
         self.skip_frames_stride = skip_frames_stride
+        self.pose_components = pose_components
 
     def _signal_to_tensor(
         self,
@@ -59,10 +61,16 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
                         end_time=signal_end or None,
                     )
 
-                pose_hide_legs(pose)
-                if self.reduce_holistic_poses:
-                    pose = reduce_holistic(pose)
-                pose = pose.normalize()
+                if self.pose_components:
+                    pose = pose.normalize()
+                    if "POSE_LANDMARKS" in self.pose_components:
+                        pose_hide_legs(pose)
+                    pose = pose.get_components(self.pose_components)
+                else:
+                    pose_hide_legs(pose)
+                    if self.reduce_holistic_poses:
+                        pose = reduce_holistic(pose)
+                    pose = pose.normalize()
                 tensor = pose.torch().body.data.zero_filled()
                 tensor = tensor.contiguous().view(tensor.size(0), -1)
             else:

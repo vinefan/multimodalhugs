@@ -9,6 +9,7 @@ from typing import Optional
 import datasets
 import transformers
 from datasets import load_from_disk
+from torch.utils.data import DataLoader
 from transformers import (
     AutoConfig,
     EarlyStoppingCallback,
@@ -29,6 +30,10 @@ from multimodalhugs.tasks.contrastive.config_classes import (
     ContrastiveProcessorArguments,
     ContrastiveTrainingArguments,
     ExtraArguments,
+)
+from multimodalhugs.tasks.contrastive.retrieval_eval import (
+    collect_retrieval_outputs,
+    compute_retrieval_metrics,
 )
 from multimodalhugs.tasks.translation.utils import (
     ensure_train_output_dir,
@@ -173,6 +178,27 @@ def _prepare_dataset(split_dataset, max_samples: Optional[int], processor: SignC
     return dataset
 
 
+def _run_retrieval_eval(
+    model: SignCLIPModel,
+    eval_dataset,
+    processor: SignCLIPProcessor,
+    training_args: ContrastiveTrainingArguments,
+):
+    batch_size = training_args.per_device_eval_batch_size
+    retrieval_outputs = collect_retrieval_outputs(
+        model=model,
+        dataset=eval_dataset,
+        processor=processor,
+        batch_size=batch_size,
+        num_workers=training_args.dataloader_num_workers,
+    )
+    return compute_retrieval_metrics(
+        sign_embeds=retrieval_outputs["sign_embeds"],
+        text_embeds=retrieval_outputs["text_embeds"],
+        texts=retrieval_outputs["texts"],
+    )
+
+
 def main():
     extra_args, model_args, processor_args, data_args, training_args = _parse_args()
 
@@ -263,6 +289,14 @@ def main():
         metrics_result = trainer.evaluate()
         if eval_dataset is not None:
             metrics_result["eval_samples"] = len(eval_dataset)
+        if training_args.run_retrieval_eval and eval_dataset is not None:
+            retrieval_metrics = _run_retrieval_eval(
+                model=model,
+                eval_dataset=eval_dataset,
+                processor=processor,
+                training_args=training_args,
+            )
+            metrics_result.update(retrieval_metrics)
         trainer.log_metrics("eval", metrics_result)
         trainer.save_metrics("eval", metrics_result)
 
