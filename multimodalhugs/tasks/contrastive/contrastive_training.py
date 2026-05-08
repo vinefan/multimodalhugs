@@ -4,12 +4,17 @@
 import logging
 import os
 import sys
+import json
+import subprocess
+from collections import defaultdict
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import datasets
 import transformers
 from datasets import load_from_disk
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SequentialSampler
 from transformers import (
     AutoConfig,
     EarlyStoppingCallback,
@@ -42,6 +47,55 @@ from multimodalhugs.tasks.translation.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class ContrastiveTrainer(Trainer):
+    def __init__(self, *args, train_ordering_strategy: str = "default", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.train_ordering_strategy = train_ordering_strategy
+
+    def _get_train_sampler(self):
+        if self.train_ordering_strategy == "fairseq_round_robin":
+            if self.train_dataset is None or not hasattr(self.train_dataset, "__len__"):
+                return None
+            logger.info("Using SequentialSampler to preserve fairseq_round_robin training order.")
+            return SequentialSampler(self.train_dataset)
+        return super()._get_train_sampler()
+
+
+def _apply_train_ordering(split_dataset, strategy: str):
+    if strategy == "default":
+        return split_dataset
+
+    if strategy != "fairseq_round_robin":
+        raise ValueError(
+            f"Unsupported train ordering strategy: {strategy}. "
+            "Supported values are `default` and `fairseq_round_robin`."
+        )
+
+    if "output" not in split_dataset.column_names:
+        raise ValueError("fairseq_round_robin ordering requires an `output` column in the training dataset.")
+
+    grouped_indices = defaultdict(list)
+    for index, output in enumerate(split_dataset["output"]):
+        grouped_indices[output].append(index)
+
+    if not grouped_indices:
+        return split_dataset
+
+    max_group_size = max(len(indices) for indices in grouped_indices.values())
+    expanded_indices = []
+    for round_index in range(max_group_size):
+        for group in grouped_indices.values():
+            expanded_indices.append(group[round_index % len(group)])
+
+    logger.info(
+        "Applied fairseq_round_robin train ordering across %s groups, expanding %s samples to %s positions.",
+        len(grouped_indices),
+        len(split_dataset),
+        len(expanded_indices),
+    )
+    return split_dataset.select(expanded_indices)
 
 
 def _parse_args():
@@ -115,6 +169,83 @@ def _setup_logging(training_args: ContrastiveTrainingArguments):
         training_args.fp16,
     )
     logger.info("Training/evaluation parameters %s", training_args)
+
+
+def _configure_wandb(training_args: ContrastiveTrainingArguments):
+    if training_args.wandb_project:
+        os.environ["WANDB_PROJECT"] = training_args.wandb_project
+        if training_args.wandb_entity:
+            os.environ["WANDB_ENTITY"] = training_args.wandb_entity
+        if training_args.wandb_tags:
+            os.environ["WANDB_TAGS"] = training_args.wandb_tags
+        if not training_args.report_to or training_args.report_to == ["none"]:
+            training_args.report_to = ["wandb"]
+    elif isinstance(training_args.report_to, list) and "wandb" in training_args.report_to:
+        logger.info("W&B reporting requested via report_to.")
+
+
+def _safe_git_value(args):
+    try:
+        return (
+            subprocess.check_output(args, cwd=os.getcwd(), stderr=subprocess.DEVNULL, text=True)
+            .strip()
+        )
+    except Exception:  # pragma: no cover - best effort metadata only
+        return None
+
+
+def _to_builtin(value):
+    if isinstance(value, dict):
+        return {key: _to_builtin(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_builtin(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
+
+def _append_experiment_record(
+    *,
+    extra_args: ExtraArguments,
+    model_args: ContrastiveModelArguments,
+    processor_args: ContrastiveProcessorArguments,
+    data_args: ContrastiveDataArguments,
+    training_args: ContrastiveTrainingArguments,
+    train_metrics: dict,
+    eval_metrics: dict,
+):
+    if not training_args.experiment_index_path:
+        return
+
+    index_path = Path(training_args.experiment_index_path)
+    if not index_path.is_absolute():
+        index_path = Path(os.getcwd()) / index_path
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+
+    record = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "run_name": training_args.run_name,
+        "output_dir": training_args.output_dir,
+        "git_branch": _safe_git_value(["git", "branch", "--show-current"]),
+        "git_commit": _safe_git_value(["git", "rev-parse", "HEAD"]),
+        "config_path": extra_args.config_path,
+        "setup_path": extra_args.setup_path,
+        "model_name_or_path": model_args.model_name_or_path,
+        "processor_name_or_path": processor_args.processor_name_or_path,
+        "dataset_dir": data_args.dataset_dir,
+        "train_ordering_strategy": data_args.train_ordering_strategy,
+        "run_retrieval_eval": training_args.run_retrieval_eval,
+        "report_to": _to_builtin(training_args.report_to),
+        "wandb_project": training_args.wandb_project,
+        "wandb_entity": training_args.wandb_entity,
+        "wandb_tags": training_args.wandb_tags,
+        "train_metrics": _to_builtin(train_metrics),
+        "eval_metrics": _to_builtin(eval_metrics),
+    }
+
+    with index_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    logger.info("Appended experiment summary to %s", index_path)
 
 
 def _detect_last_checkpoint(training_args: ContrastiveTrainingArguments) -> Optional[str]:
@@ -223,6 +354,7 @@ def main():
 
     training_args.output_dir = ensure_train_output_dir(training_args.output_dir)
     setattr(training_args, "remove_unused_columns", False)
+    _configure_wandb(training_args)
 
     send_example_telemetry("run_contrastive", model_args, data_args)
     _setup_logging(training_args)
@@ -243,7 +375,8 @@ def main():
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = _prepare_dataset(raw_datasets["train"], data_args.max_train_samples, processor)
+        ordered_train_dataset = _apply_train_ordering(raw_datasets["train"], data_args.train_ordering_strategy)
+        train_dataset = _prepare_dataset(ordered_train_dataset, data_args.max_train_samples, processor)
 
     if training_args.do_eval:
         if "validation" not in raw_datasets:
@@ -260,16 +393,18 @@ def main():
     if training_args.early_stopping_patience is not None:
         callbacks.append(EarlyStoppingCallback(early_stopping_patience=training_args.early_stopping_patience))
 
-    trainer = Trainer(
+    trainer = ContrastiveTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         data_collator=data_collator,
         callbacks=callbacks,
+        train_ordering_strategy=data_args.train_ordering_strategy,
     )
 
     metrics_result = {}
+    train_metrics_result = {}
 
     if training_args.do_train:
         checkpoint = training_args.resume_from_checkpoint or last_checkpoint
@@ -279,8 +414,10 @@ def main():
         processor.save_pretrained(training_args.output_dir)
 
         metrics = train_result.metrics
+        train_metrics_result = dict(metrics)
         if train_dataset is not None:
             metrics["train_samples"] = len(train_dataset)
+            train_metrics_result["train_samples"] = len(train_dataset)
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
@@ -299,6 +436,16 @@ def main():
             metrics_result.update(retrieval_metrics)
         trainer.log_metrics("eval", metrics_result)
         trainer.save_metrics("eval", metrics_result)
+
+    _append_experiment_record(
+        extra_args=extra_args,
+        model_args=model_args,
+        processor_args=processor_args,
+        data_args=data_args,
+        training_args=training_args,
+        train_metrics=train_metrics_result,
+        eval_metrics=metrics_result,
+    )
 
     return metrics_result
 

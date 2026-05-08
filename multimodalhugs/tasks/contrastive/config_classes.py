@@ -54,6 +54,10 @@ class ContrastiveDataArguments:
         default=None,
         metadata={"help": "Optional cap on the number of evaluation samples."},
     )
+    train_ordering_strategy: str = field(
+        default="default",
+        metadata={"help": "Training-set ordering strategy. Supported values: `default`, `fairseq_round_robin`."},
+    )
 
 
 @dataclass
@@ -89,4 +93,20 @@ class ContrastiveTrainingArguments(TrainingArguments):
     run_retrieval_eval: bool = field(
         default=False,
         metadata={"help": "Whether to run dataset-wide retrieval evaluation in addition to eval_loss."},
+    )
+    experiment_index_path: Optional[str] = field(
+        default="experiments/signclip_runs.jsonl",
+        metadata={"help": "Local JSONL file used to append one summary record per experiment run."},
+    )
+    wandb_project: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional Weights & Biases project name. When set, contrastive runs are reported to W&B."},
+    )
+    wandb_entity: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional Weights & Biases entity/team name."},
+    )
+    wandb_tags: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional comma-separated Weights & Biases tags for this run."},
     )

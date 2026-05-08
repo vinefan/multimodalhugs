@@ -1,0 +1,25 @@
+# Local retrieval evaluation config for the 25-epoch default-ordering hand-only SignCLIP run.
+
+model:
+  model_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_train_hand_fairseqish_ab_default_25ep/train"
+
+processor:
+  processor_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_train_hand_fairseqish_ab_default_25ep/train"
+
+data:
+  dataset_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+
+training:
+  output_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_eval_hand_fairseqish_ab_default_25ep_final"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "sign_clip_hand_fairseqish_ab_default_25ep_final_eval"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+
+  per_device_eval_batch_size: 2
+  dataloader_num_workers: 0
+  seed: 42
+  report_to: []

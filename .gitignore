@@ -55,6 +55,8 @@ AGENTS.md
 claude.md
 MIGRATION.md
 Development_Progress.md
+Sampling_Strategy_Plan.md
+WandB_Experiment_Contract.md
 fairseq_style_sign_clip/
 SignCLIP.pdf
 docs/archive/
@@ -76,3 +78,11 @@ configs/sign_clip_train_hand_overfit.local.yaml
 configs/sign_clip_setup_hand_fairseqish.local.yaml
 configs/sign_clip_train_hand_fairseqish_overfit.local.yaml
 configs/sign_clip_train_hand_fairseqish_eval.local.yaml
+configs/sign_clip_train_hand_fairseqish_ab_*.local.yaml
+!configs/sign_clip_setup_hand_fairseqish.local.yaml
+!configs/sign_clip_train_hand_fairseqish_eval.local.yaml
+!configs/sign_clip_train_hand_fairseqish_ab_default.local.yaml
+!configs/sign_clip_train_hand_fairseqish_ab_round_robin.local.yaml
+!configs/sign_clip_train_hand_fairseqish_ab_default_25ep_eval.local.yaml
+!configs/sign_clip_train_hand_fairseqish_ab_round_robin_25ep_eval.local.yaml
+experiments/signclip_runs.jsonl

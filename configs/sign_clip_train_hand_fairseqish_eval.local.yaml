@@ -1,0 +1,25 @@
+# Local evaluation config for the hand-only SignCLIP variant on fairseq-like local metadata.
+
+model:
+  model_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/model"
+
+processor:
+  processor_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+
+training:
+  output_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_train_hand_fairseqish_eval"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "sign_clip_hand_fairseqish_eval"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+
+  per_device_eval_batch_size: 2
+  dataloader_num_workers: 0
+  seed: 42
+  report_to: []

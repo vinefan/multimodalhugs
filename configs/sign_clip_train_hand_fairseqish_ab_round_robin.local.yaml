@@ -1,0 +1,41 @@
+# A/B experiment config: fairseq-style round-robin train ordering on full fairseq-like hand-only fingerclip data.
+
+model:
+  model_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/model"
+
+processor:
+  processor_name_or_path: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+  train_ordering_strategy: "fairseq_round_robin"
+
+training:
+  output_dir: "/Users/fanxu/research/multimodalhugs/output/sign_clip_train_hand_fairseqish_ab_round_robin_25ep"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "sign_clip_hand_fairseqish_ab_round_robin_25ep"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+
+  per_device_train_batch_size: 35
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 1
+
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+  num_train_epochs: 25
+  warmup_steps: 0
+
+  logging_strategy: "epoch"
+  eval_strategy: "epoch"
+  save_strategy: "no"
+
+  dataloader_num_workers: 0
+  seed: 42
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip"
+  wandb_tags: "fingerclip,hand,fairseqish,ab,round_robin,25ep"
