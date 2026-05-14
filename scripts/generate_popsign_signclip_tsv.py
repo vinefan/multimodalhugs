@@ -33,7 +33,7 @@ import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence
 
 
 EXPECTED_COLUMNS = [
@@ -53,7 +53,7 @@ class SampleRecord:
     split: str
     label: str
     pose_path: Path
-    video_path: Path
+    video_path: Optional[Path]
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,16 +93,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-template",
         type=str,
-        default="<en> <ase> {label}",
+        default="{label}",
         help=(
             "Template for the TSV output text. Available fields: {label}, {raw_label}. "
-            "Defaults to a SignCLIP-style pretraining prompt."
+            "Defaults to the concept label itself."
         ),
     )
     parser.add_argument(
         "--encoder-prompt",
         type=str,
-        default="",
+        default="<en> <ase>",
         help="Static encoder_prompt value for every TSV row.",
     )
     parser.add_argument(
@@ -152,28 +152,19 @@ def collect_split_records(split_root: Path, split_name: str) -> List[SampleRecor
     records: List[SampleRecord] = []
     for sign_dir in iter_sign_dirs(split_root):
         label = sign_dir.name
-        mp4_by_stem = {path.stem: path for path in sign_dir.glob("*.mp4")}
         pose_by_stem = {path.stem: path for path in sign_dir.glob("*.pose")}
+        mp4_by_stem = {path.stem: path for path in sign_dir.glob("*.mp4")}
 
-        if not mp4_by_stem and not pose_by_stem:
+        if not pose_by_stem:
             continue
 
-        stems = sorted(set(mp4_by_stem) | set(pose_by_stem))
-        missing_mp4 = sorted(set(pose_by_stem) - set(mp4_by_stem))
-        missing_pose = sorted(set(mp4_by_stem) - set(pose_by_stem))
-        if missing_mp4 or missing_pose:
-            raise ValueError(
-                f"Unpaired files found in {sign_dir}: "
-                f"missing mp4 for {missing_mp4[:5]}, missing pose for {missing_pose[:5]}"
-            )
-
-        for stem in stems:
+        for stem in sorted(pose_by_stem):
             records.append(
                 SampleRecord(
                     split=split_name,
                     label=label,
                     pose_path=pose_by_stem[stem],
-                    video_path=mp4_by_stem[stem],
+                    video_path=mp4_by_stem.get(stem),
                 )
             )
     return records
@@ -215,7 +206,14 @@ def build_tsv_rows(
     for record in records:
         raw_label = record.label
         label = normalize_label(raw_label, keep_label_format)
-        signal_path = record.pose_path if signal_type == "pose" else record.video_path
+        if signal_type == "pose":
+            signal_path = record.pose_path
+        else:
+            if record.video_path is None:
+                raise ValueError(
+                    f"Requested signal_type=video but no matching .mp4 was found for {record.pose_path}"
+                )
+            signal_path = record.video_path
         rows.append(
             {
                 "signal": render_signal_path(signal_path, input_root, use_relative_paths),
