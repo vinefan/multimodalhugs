@@ -94,6 +94,12 @@ class ContrastiveTrainingArguments(TrainingArguments):
         default=False,
         metadata={"help": "Whether to run dataset-wide retrieval evaluation in addition to eval_loss."},
     )
+    retrieval_eval_direction: str = field(
+        default="both",
+        metadata={
+            "help": "Which retrieval directions to evaluate. Supported values: `both`, `v2t`, `t2v`."
+        },
+    )
     experiment_index_path: Optional[str] = field(
         default="experiments/signclip_runs.jsonl",
         metadata={"help": "Local JSONL file used to append one summary record per experiment run."},

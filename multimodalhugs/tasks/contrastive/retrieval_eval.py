@@ -147,9 +147,22 @@ def compute_video_to_text_metrics(scores: torch.Tensor, texts: List[str]) -> Dic
     }
 
 
-def compute_retrieval_metrics(sign_embeds: torch.Tensor, text_embeds: torch.Tensor, texts: List[str]) -> Dict[str, float]:
+def compute_retrieval_metrics(
+    sign_embeds: torch.Tensor,
+    text_embeds: torch.Tensor,
+    texts: List[str],
+    direction: str = "both",
+) -> Dict[str, float]:
+    if direction not in {"both", "v2t", "t2v"}:
+        raise ValueError(
+            f"Unsupported retrieval_eval_direction: {direction}. "
+            "Supported values are `both`, `v2t`, and `t2v`."
+        )
+
     scores = compute_similarity_matrix(sign_embeds, text_embeds)
     metrics = {}
-    metrics.update(compute_text_to_video_metrics(scores, texts))
-    metrics.update(compute_video_to_text_metrics(scores, texts))
+    if direction in {"both", "t2v"}:
+        metrics.update(compute_text_to_video_metrics(scores, texts))
+    if direction in {"both", "v2t"}:
+        metrics.update(compute_video_to_text_metrics(scores, texts))
     return metrics

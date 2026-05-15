@@ -327,6 +327,7 @@ def _run_retrieval_eval(
         sign_embeds=retrieval_outputs["sign_embeds"],
         text_embeds=retrieval_outputs["text_embeds"],
         texts=retrieval_outputs["texts"],
+        direction=training_args.retrieval_eval_direction,
     )
 
 
