@@ -33,7 +33,7 @@ model:
   sign_input_dim: 534
   num_hidden_sign_encoder_layers: 6
   sign_hidden_size: null
-  sign_max_position_embeddings: 256
+  sign_max_position_embeddings: 258
   sign_use_seg_emb: false
   sign_conv1d_layers: 0
 
