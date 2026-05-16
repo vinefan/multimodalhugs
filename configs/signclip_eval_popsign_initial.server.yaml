@@ -1,0 +1,30 @@
+# Server evaluation config for PopSign SignCLIP before pretraining.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/model"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/evals/popsign_initial_v1"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-eval-popsign-initial-v1"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+  retrieval_eval_direction: "v2t"
+
+  per_device_eval_batch_size: 128
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-popsign"
+  wandb_tags: "signclip,popsign,eval,initial,server,v2t,v1"
