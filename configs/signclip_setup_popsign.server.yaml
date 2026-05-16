@@ -29,8 +29,8 @@ model:
   sign_encoder_type: "bert"
   pretrained_sign_encoder: null
 
-  # Reduced holistic pose shape aligned with the fairseq SignCLIP pretraining setup.
-  sign_input_dim: 609
+  # Current MMH reduced_holistic PopSign processor emits 534-dim pose tokens.
+  sign_input_dim: 534
   num_hidden_sign_encoder_layers: 6
   sign_hidden_size: null
   sign_max_position_embeddings: 256
