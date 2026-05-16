@@ -23,6 +23,7 @@ echo "[setup] config=${CONFIG_PATH}"
 echo "[setup] start=$(date -Iseconds)"
 
 pixi run python -m multimodalhugs.multimodalhugs_cli.training_setup \
-  --config_path "${CONFIG_PATH}"
+  --config_path "${CONFIG_PATH}" \
+  --modality sign_clip
 
 echo "[setup] done=$(date -Iseconds)"
