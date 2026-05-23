@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-Convert YouTube-ASL metadata.tsv into SignCLIP-compatible train/validation/test TSVs.
+Convert the original YouTube-ASL metadata.tsv into SignCLIP-compatible
+train/validation/test TSVs.
 
 Expected input columns:
-    source_signal  source_start  source_end  input_text  source_prompt
-    generation_prompt  output_text
+    file  offset  duration  utf8  mp4_full_duration
 
 Generated output columns:
     signal  signal_start  signal_end  encoder_prompt  decoder_prompt  output
 
+Transformations:
+    - replace the original gsantm-local prefix with the shared downloads prefix
+    - replace `.mp4` file suffixes with `.pose`
+
 Split strategy:
-    - group by source_signal
+    - group by signal path
     - shuffle groups with a deterministic seed
     - assign groups to train / validation / test according to provided ratios
 """
@@ -27,13 +31,11 @@ from typing import Dict, Iterable, List, Sequence
 
 
 EXPECTED_INPUT_COLUMNS = [
-    "source_signal",
-    "source_start",
-    "source_end",
-    "input_text",
-    "source_prompt",
-    "generation_prompt",
-    "output_text",
+    "file",
+    "offset",
+    "duration",
+    "utf8",
+    "mp4_full_duration",
 ]
 
 EXPECTED_OUTPUT_COLUMNS = [
@@ -80,19 +82,19 @@ def parse_args() -> argparse.Namespace:
         "--train-ratio",
         type=float,
         default=0.98,
-        help="Fraction of source_signal groups assigned to train.",
+        help="Fraction of signal-path groups assigned to train.",
     )
     parser.add_argument(
         "--validation-ratio",
         type=float,
         default=0.01,
-        help="Fraction of source_signal groups assigned to validation.",
+        help="Fraction of signal-path groups assigned to validation.",
     )
     parser.add_argument(
         "--test-ratio",
         type=float,
         default=0.01,
-        help="Fraction of source_signal groups assigned to test.",
+        help="Fraction of signal-path groups assigned to test.",
     )
     parser.add_argument(
         "--seed",
@@ -118,18 +120,20 @@ def load_rows(path: Path) -> List[dict]:
 def remap_signal_path(signal: str, old_prefix: str, new_prefix: str) -> str:
     signal = (signal or "").strip()
     if signal.startswith(old_prefix):
-        return new_prefix + signal[len(old_prefix):]
+        signal = new_prefix + signal[len(old_prefix):]
+    if signal.endswith(".mp4"):
+        signal = signal[:-4] + ".pose"
     return signal
 
 
 def to_signclip_row(row: dict, old_prefix: str, new_prefix: str) -> dict:
     return {
-        "signal": remap_signal_path(row["source_signal"], old_prefix, new_prefix),
-        "signal_start": row["source_start"],
-        "signal_end": row["source_end"],
-        "encoder_prompt": row.get("source_prompt", "") or "",
-        "decoder_prompt": row.get("generation_prompt", "") or "",
-        "output": row.get("output_text", "") or "",
+        "signal": remap_signal_path(row["file"], old_prefix, new_prefix),
+        "signal_start": row["offset"],
+        "signal_end": row["duration"],
+        "encoder_prompt": "",
+        "decoder_prompt": "",
+        "output": row.get("utf8", "") or "",
     }
 
 
@@ -198,7 +202,7 @@ def main() -> None:
 
     groups: "OrderedDict[str, List[dict]]" = OrderedDict()
     for row in raw_rows:
-        signal = (row["source_signal"] or "").strip()
+        signal = remap_signal_path(row["file"], args.old_prefix, args.new_prefix)
         groups.setdefault(signal, []).append(row)
 
     split_keys = grouped_split_keys(
