@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-Convert the original YouTube-ASL metadata.tsv into SignCLIP-compatible
+Convert YouTube-ASL metadata TSV files into SignCLIP-compatible
 train/validation/test TSVs.
 
-Expected input columns:
-    file  offset  duration  utf8  mp4_full_duration
+Supported input schemas:
+
+1. Original root metadata.tsv
+   file  offset  duration  utf8  mp4_full_duration
+
+2. Downloads metadata.tsv
+   source_signal  source_start  source_end  input_text  source_prompt
+   generation_prompt  output_text
 
 Generated output columns:
     signal  signal_start  signal_end  encoder_prompt  decoder_prompt  output
@@ -30,12 +36,22 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
 
-EXPECTED_INPUT_COLUMNS = [
+ROOT_METADATA_COLUMNS = [
     "file",
     "offset",
     "duration",
     "utf8",
     "mp4_full_duration",
+]
+
+DOWNLOADS_METADATA_COLUMNS = [
+    "source_signal",
+    "source_start",
+    "source_end",
+    "input_text",
+    "source_prompt",
+    "generation_prompt",
+    "output_text",
 ]
 
 EXPECTED_OUTPUT_COLUMNS = [
@@ -105,16 +121,24 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_rows(path: Path) -> List[dict]:
+def detect_schema(fieldnames: Sequence[str]) -> str:
+    fields = set(fieldnames)
+    if set(ROOT_METADATA_COLUMNS).issubset(fields):
+        return "root"
+    if set(DOWNLOADS_METADATA_COLUMNS).issubset(fields):
+        return "downloads"
+    raise ValueError(
+        "Input TSV does not match a supported YouTube-ASL schema. "
+        f"Found columns: {list(fieldnames)}"
+    )
+
+
+def load_rows(path: Path) -> tuple[List[dict], str]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
-        missing = [column for column in EXPECTED_INPUT_COLUMNS if column not in (reader.fieldnames or [])]
-        if missing:
-            raise ValueError(
-                f"Input TSV is missing expected columns: {missing}. "
-                f"Found columns: {reader.fieldnames}"
-            )
-        return list(reader)
+        fieldnames = reader.fieldnames or []
+        schema = detect_schema(fieldnames)
+        return list(reader), schema
 
 
 def remap_signal_path(signal: str, old_prefix: str, new_prefix: str) -> str:
@@ -126,14 +150,31 @@ def remap_signal_path(signal: str, old_prefix: str, new_prefix: str) -> str:
     return signal
 
 
-def to_signclip_row(row: dict, old_prefix: str, new_prefix: str) -> dict:
+def to_signclip_row(row: dict, old_prefix: str, new_prefix: str, schema: str) -> dict:
+    if schema == "root":
+        signal = remap_signal_path(row["file"], old_prefix, new_prefix)
+        signal_start = row["offset"]
+        signal_end = row["duration"]
+        encoder_prompt = ""
+        decoder_prompt = ""
+        output = row.get("utf8", "") or ""
+    elif schema == "downloads":
+        signal = remap_signal_path(row["source_signal"], old_prefix, new_prefix)
+        signal_start = row["source_start"]
+        signal_end = row["source_end"]
+        encoder_prompt = row.get("source_prompt", "") or ""
+        decoder_prompt = row.get("generation_prompt", "") or ""
+        output = row.get("output_text", "") or ""
+    else:
+        raise ValueError(f"Unsupported schema: {schema}")
+
     return {
-        "signal": remap_signal_path(row["file"], old_prefix, new_prefix),
-        "signal_start": row["offset"],
-        "signal_end": row["duration"],
-        "encoder_prompt": "",
-        "decoder_prompt": "",
-        "output": row.get("utf8", "") or "",
+        "signal": signal,
+        "signal_start": signal_start,
+        "signal_end": signal_end,
+        "encoder_prompt": encoder_prompt,
+        "decoder_prompt": decoder_prompt,
+        "output": output,
     }
 
 
@@ -198,11 +239,15 @@ def main() -> None:
     input_tsv = args.input_tsv.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
 
-    raw_rows = load_rows(input_tsv)
+    raw_rows, schema = load_rows(input_tsv)
 
     groups: "OrderedDict[str, List[dict]]" = OrderedDict()
     for row in raw_rows:
-        signal = remap_signal_path(row["file"], args.old_prefix, args.new_prefix)
+        if schema == "root":
+            raw_signal = row["file"]
+        else:
+            raw_signal = row["source_signal"]
+        signal = remap_signal_path(raw_signal, args.old_prefix, args.new_prefix)
         groups.setdefault(signal, []).append(row)
 
     split_keys = grouped_split_keys(
@@ -217,7 +262,7 @@ def main() -> None:
     for split_name, keys in split_keys.items():
         for key in keys:
             split_rows[split_name].extend(
-                to_signclip_row(row, args.old_prefix, args.new_prefix) for row in groups[key]
+                to_signclip_row(row, args.old_prefix, args.new_prefix, schema) for row in groups[key]
             )
 
     for split_name in SPLIT_NAMES:
