@@ -23,6 +23,7 @@ import csv
 import math
 import random
 import statistics
+from collections import Counter
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
@@ -91,6 +92,12 @@ def parse_args() -> argparse.Namespace:
         default=42,
         help="Sampling seed used when --sample-size is provided.",
     )
+    parser.add_argument(
+        "--max-failure-examples",
+        type=int,
+        default=10,
+        help="Maximum number of failure examples to print per split.",
+    )
     return parser.parse_args()
 
 
@@ -132,9 +139,12 @@ def summarize_lengths(
     max_frames: int,
     sign_max_position_embeddings: int,
     special_tokens: int,
+    max_failure_examples: int,
 ) -> Dict[str, object]:
     frame_lengths: List[int] = []
     failed_rows = 0
+    failure_examples: List[dict] = []
+    failure_counter: Counter[str] = Counter()
 
     for row in rows:
         try:
@@ -146,8 +156,20 @@ def summarize_lengths(
                 }
             )
             frame_lengths.append(int(tensor.size(0)))
-        except Exception:
+        except Exception as exc:
             failed_rows += 1
+            error_type = type(exc).__name__
+            failure_counter[error_type] += 1
+            if len(failure_examples) < max_failure_examples:
+                failure_examples.append(
+                    {
+                        "signal": row["signal"],
+                        "signal_start": row.get("signal_start"),
+                        "signal_end": row.get("signal_end"),
+                        "error_type": error_type,
+                        "error_message": str(exc),
+                    }
+                )
 
     frame_lengths_sorted = sorted(frame_lengths)
     num_rows = len(frame_lengths)
@@ -177,6 +199,8 @@ def summarize_lengths(
         "at_or_over_max_frames": at_or_over_max,
         "over_position_limit": over_position_limit,
         "at_position_limit": at_position_limit,
+        "failure_types": failure_counter,
+        "failure_examples": failure_examples,
     }
 
 
@@ -232,6 +256,19 @@ def format_summary(
             f"{ratio_string(summary['at_position_limit'], num_rows)}"
         ),
     ]
+    failure_types = dict(summary["failure_types"])
+    if failure_types:
+        lines.append(f"failure_types={failure_types}")
+    failure_examples = summary["failure_examples"]
+    if failure_examples:
+        lines.append("failure_examples=")
+        for example in failure_examples:
+            lines.append(
+                "  - "
+                f"{example['error_type']}: signal={example['signal']} "
+                f"start={example['signal_start']} end={example['signal_end']} "
+                f"message={example['error_message']}"
+            )
     return "\n".join(lines)
 
 
@@ -254,6 +291,7 @@ def main() -> None:
             max_frames=args.max_frames,
             sign_max_position_embeddings=args.sign_max_position_embeddings,
             special_tokens=args.special_tokens,
+            max_failure_examples=args.max_failure_examples,
         )
         print(
             format_summary(
