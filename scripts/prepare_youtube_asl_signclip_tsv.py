@@ -162,18 +162,24 @@ def remap_signal_path(signal: str, old_prefix: str, new_prefix: str) -> str:
     return signal
 
 
+def compute_end_from_start_and_duration(start_value: str, duration_value: str) -> int:
+    start = int(float(start_value or 0))
+    duration = int(float(duration_value or 0))
+    return start + duration
+
+
 def to_signclip_row(row: dict, old_prefix: str, new_prefix: str, schema: str) -> dict:
     if schema == "root":
         signal = remap_signal_path(row["file"], old_prefix, new_prefix)
         signal_start = row["offset"]
-        signal_end = row["duration"]
+        signal_end = compute_end_from_start_and_duration(row["offset"], row["duration"])
         encoder_prompt = ""
         decoder_prompt = ""
         output = row.get("utf8", "") or ""
     elif schema == "downloads":
         signal = remap_signal_path(row["source_signal"], old_prefix, new_prefix)
         signal_start = row["source_start"]
-        signal_end = row["source_end"]
+        signal_end = compute_end_from_start_and_duration(row["source_start"], row["source_end"])
         encoder_prompt = row.get("source_prompt", "") or ""
         decoder_prompt = row.get("generation_prompt", "") or ""
         output = row.get("output_text", "") or ""
