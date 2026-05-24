@@ -26,7 +26,7 @@ import statistics
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
-from multimodalhugs.processors.sign_clip_processor import SignCLIPProcessor
+from multimodalhugs.processors.pose_modality_processor import PoseModalityProcessor
 
 
 SPLITS = ("train", "validation", "test")
@@ -128,7 +128,7 @@ def maybe_sample_rows(rows: List[dict], sample_size: int | None, seed: int) -> L
 def summarize_lengths(
     rows: Iterable[dict],
     *,
-    processor: SignCLIPProcessor,
+    processor: PoseModalityProcessor,
     max_frames: int,
     sign_max_position_embeddings: int,
     special_tokens: int,
@@ -138,10 +138,12 @@ def summarize_lengths(
 
     for row in rows:
         try:
-            tensor = processor._signal_to_tensor(
-                row["signal"],
-                int(float(row.get("signal_start") or 0)),
-                int(float(row.get("signal_end") or 0)),
+            tensor = processor.process_sample(
+                {
+                    "signal": row["signal"],
+                    "signal_start": int(float(row.get("signal_start") or 0)),
+                    "signal_end": int(float(row.get("signal_end") or 0)),
+                }
             )
             frame_lengths.append(int(tensor.size(0)))
         except Exception:
@@ -237,11 +239,9 @@ def main() -> None:
     args = parse_args()
     input_dir = args.input_dir.expanduser().resolve()
 
-    processor = SignCLIPProcessor(
-        tokenizer=None,
+    processor = PoseModalityProcessor(
         reduce_holistic_poses=not args.no_reduce_holistic_poses,
         skip_frames_stride=args.skip_frames_stride,
-        pose_components=None,
     )
 
     for split in SPLITS:
