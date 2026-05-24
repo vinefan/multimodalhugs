@@ -118,6 +118,18 @@ def parse_args() -> argparse.Namespace:
         default=42,
         help="Random seed used for grouped split assignment.",
     )
+    parser.add_argument(
+        "--min-output-chars",
+        type=int,
+        default=1,
+        help="Drop samples whose stripped output text is shorter than this many characters.",
+    )
+    parser.add_argument(
+        "--max-duration-ms",
+        type=float,
+        default=None,
+        help="Optional maximum segment duration in milliseconds. Longer samples are dropped.",
+    )
     return parser.parse_args()
 
 
@@ -176,6 +188,29 @@ def to_signclip_row(row: dict, old_prefix: str, new_prefix: str, schema: str) ->
         "decoder_prompt": decoder_prompt,
         "output": output,
     }
+
+
+def should_keep_row(
+    row: dict,
+    *,
+    schema: str,
+    min_output_chars: int,
+    max_duration_ms: float | None,
+) -> bool:
+    if schema == "root":
+        output = (row.get("utf8", "") or "").strip()
+        duration = float(row["duration"])
+    elif schema == "downloads":
+        output = (row.get("output_text", "") or "").strip()
+        duration = float(row["source_end"])
+    else:
+        raise ValueError(f"Unsupported schema: {schema}")
+
+    if len(output) < min_output_chars:
+        return False
+    if max_duration_ms is not None and duration > max_duration_ms:
+        return False
+    return True
 
 
 def grouped_split_keys(
@@ -240,9 +275,19 @@ def main() -> None:
     output_dir = args.output_dir.expanduser().resolve()
 
     raw_rows, schema = load_rows(input_tsv)
+    filtered_rows = [
+        row
+        for row in raw_rows
+        if should_keep_row(
+            row,
+            schema=schema,
+            min_output_chars=args.min_output_chars,
+            max_duration_ms=args.max_duration_ms,
+        )
+    ]
 
     groups: "OrderedDict[str, List[dict]]" = OrderedDict()
-    for row in raw_rows:
+    for row in filtered_rows:
         if schema == "root":
             raw_signal = row["file"]
         else:
@@ -269,6 +314,10 @@ def main() -> None:
         rows = split_rows[split_name]
         write_tsv(output_dir / f"{split_name}.tsv", rows)
         print(f"[{split_name}] groups={len(split_keys[split_name])} rows={len(rows)}")
+    print(
+        f"[summary] input_rows={len(raw_rows)} kept_rows={len(filtered_rows)} "
+        f"dropped_rows={len(raw_rows) - len(filtered_rows)}"
+    )
 
 
 if __name__ == "__main__":
