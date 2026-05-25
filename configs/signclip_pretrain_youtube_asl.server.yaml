@@ -1,0 +1,49 @@
+# Server training config for YouTube-ASL SignCLIP pretraining.
+# This is a first practical sentence-level baseline on top of the cleaned
+# YouTube-ASL grouped splits.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/model"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/datasets/default"
+  train_ordering_strategy: "default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-pretrain-youtube-asl-v1"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+  retrieval_eval_direction: "v2t"
+
+  # More conservative than PopSign because sentence-level text segments and
+  # larger corpus scale may raise memory and dataloader pressure.
+  per_device_train_batch_size: 128
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 1
+
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+  num_train_epochs: 25
+  warmup_steps: 1000
+
+  logging_strategy: "steps"
+  logging_steps: 100
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  save_total_limit: 2
+
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-asl"
+  wandb_tags: "signclip,youtube-asl,pretrain,server,reduced_holistic,v1,sentence-level"

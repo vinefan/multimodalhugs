@@ -1,0 +1,62 @@
+# Server setup config for YouTube-ASL SignCLIP pretraining preparation.
+# This is the first sentence-level YouTube-ASL baseline for the MMH SignCLIP
+# migration. Unlike PopSign, this corpus uses sentence-level text segments and
+# cleaned grouped splits derived from the shared root metadata.
+
+data:
+  dataset_type: "pose2text"
+  train_metadata_file: "/shares/iict-sp2.ebling.cl.uzh/common/YouTube-ASL/metadata_signclip_clean_v2/train.tsv"
+  validation_metadata_file: "/shares/iict-sp2.ebling.cl.uzh/common/YouTube-ASL/metadata_signclip_clean_v2/validation.tsv"
+  test_metadata_file: "/shares/iict-sp2.ebling.cl.uzh/common/YouTube-ASL/metadata_signclip_clean_v2/test.tsv"
+  shuffle: true
+  max_frames: 256
+
+processor:
+  tokenizer_path: "bert-base-cased"
+  text_tokenizer_path: "bert-base-cased"
+  reduce_holistic_poses: true
+  skip_frames_stride: null
+  pose_components: null
+
+model:
+  type: "sign_clip"
+  pretrained_text_encoder: "bert-base-cased"
+  text_encoder_type: "bert"
+  cls_token_id: 101
+  sep_token_id: 102
+  pad_token_id: 0
+
+  sign_encoder_type: "bert"
+  pretrained_sign_encoder: null
+
+  # Current MMH reduced_holistic processor emits 534-dim pose tokens here too.
+  sign_input_dim: 534
+  num_hidden_sign_encoder_layers: 6
+  sign_hidden_size: null
+  sign_max_position_embeddings: 258
+  sign_use_seg_emb: false
+  sign_conv1d_layers: 0
+
+  hidden_dropout_prob: 0.1
+  attention_probs_dropout_prob: 0.1
+
+  use_projection: true
+  projection_dim: 512
+  projection_l2_norm: true
+  logit_scale_init_value: 2.6592
+  max_logit_scale: 100.0
+
+  freeze_sign_encoder: false
+  freeze_text_encoder: false
+  freeze_sign_projection: false
+  freeze_text_projection: false
+
+  output_hidden_states: false
+  return_dict: true
+
+setup:
+  output_dir: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1"
+  do_dataset: true
+  do_processor: true
+  do_model: true
+  update_config: false
