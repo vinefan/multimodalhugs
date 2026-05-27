@@ -1,0 +1,30 @@
+# Server evaluation config for YouTube-ASL SignCLIP after pretraining.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/datasets/default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/evals/youtube_asl_pretrain_v1_final"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-eval-youtube-asl-final-v1"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+  retrieval_eval_direction: "v2t"
+
+  per_device_eval_batch_size: 64
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-asl"
+  wandb_tags: "signclip,youtube-asl,eval,final,server,v2t,v1,sentence-level"
