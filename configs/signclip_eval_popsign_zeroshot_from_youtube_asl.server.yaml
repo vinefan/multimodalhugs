@@ -2,10 +2,10 @@
 # YouTube-ASL-pretrained SignCLIP model.
 
 model:
-  model_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train"
+  model_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train/checkpoint-8048"
 
 processor:
-  processor_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train"
+  processor_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v1/train/checkpoint-8048"
 
 data:
   dataset_dir: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default"
