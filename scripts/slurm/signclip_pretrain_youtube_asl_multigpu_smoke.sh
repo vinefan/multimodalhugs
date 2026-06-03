@@ -34,6 +34,9 @@ pixi run torchrun --standalone --nnodes=1 --nproc_per_node="${GPUS_PER_NODE}" \
   --config_path "${CONFIG_PATH}" \
   --output_dir "${SMOKE_OUTPUT_DIR}" \
   --max_steps 50 \
+  --per_device_train_batch_size 32 \
+  --per_device_eval_batch_size 32 \
+  --dataloader_num_workers 1 \
   --logging_steps 5 \
   --eval_strategy no \
   --save_strategy no \
