@@ -6,7 +6,6 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
-from torch.distributed.nn.functional import all_gather
 from transformers import AutoConfig, AutoModel, PreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 
@@ -344,7 +343,14 @@ class SignCLIPModel(PreTrainedModel):
 
     @staticmethod
     def _gather_distributed_features(features: torch.Tensor) -> torch.Tensor:
-        gathered_features = all_gather(features)
+        world_size = dist.get_world_size()
+        rank = dist.get_rank()
+        gathered_features = [torch.empty_like(features) for _ in range(world_size)]
+        dist.all_gather(gathered_features, features)
+        # Keep gradients for the local slice while using remote features as negatives.
+        # This avoids torch.distributed.nn.functional.all_gather backward, which
+        # requires all_to_all and is unsupported by the gloo backend.
+        gathered_features[rank] = features
         return torch.cat(gathered_features, dim=0)
 
     def _compute_distributed_logits_and_labels(
