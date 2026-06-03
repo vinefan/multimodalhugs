@@ -3,8 +3,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
+from torch.distributed.nn.functional import all_gather
 from transformers import AutoConfig, AutoModel, PreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 
@@ -337,11 +339,44 @@ class SignCLIPModel(PreTrainedModel):
         return logits_per_sign, logits_per_text
 
     @staticmethod
+    def _distributed_training_is_active() -> bool:
+        return dist.is_available() and dist.is_initialized() and dist.get_world_size() > 1
+
+    @staticmethod
+    def _gather_distributed_features(features: torch.Tensor) -> torch.Tensor:
+        gathered_features = all_gather(features)
+        return torch.cat(gathered_features, dim=0)
+
+    def _compute_distributed_logits_and_labels(
+        self,
+        sign_features: torch.Tensor,
+        text_features: torch.Tensor,
+    ):
+        if not self.config.use_projection and self.config.projection_l2_norm:
+            sign_features = F.normalize(sign_features, p=2, dim=-1)
+            text_features = F.normalize(text_features, p=2, dim=-1)
+
+        global_sign_features = self._gather_distributed_features(sign_features)
+        global_text_features = self._gather_distributed_features(text_features)
+
+        logit_scale = self.logit_scale.exp().clamp(max=self.config.max_logit_scale)
+        logits_per_sign = logit_scale * torch.matmul(sign_features, global_text_features.transpose(0, 1))
+        logits_per_text = logit_scale * torch.matmul(text_features, global_sign_features.transpose(0, 1))
+
+        rank = dist.get_rank()
+        local_batch_size = sign_features.size(0)
+        label_offset = rank * local_batch_size
+        labels = torch.arange(local_batch_size, device=sign_features.device) + label_offset
+        return logits_per_sign, logits_per_text, labels
+
+    @staticmethod
     def _compute_contrastive_loss(
         logits_per_sign: torch.Tensor,
         logits_per_text: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        labels = torch.arange(logits_per_sign.size(0), device=logits_per_sign.device)
+        if labels is None:
+            labels = torch.arange(logits_per_sign.size(0), device=logits_per_sign.device)
         sign_loss = F.cross_entropy(logits_per_sign, labels)
         text_loss = F.cross_entropy(logits_per_text, labels)
         return 0.5 * (sign_loss + text_loss)
@@ -372,8 +407,15 @@ class SignCLIPModel(PreTrainedModel):
             token_type_ids=token_type_ids,
         )
 
-        logits_per_sign, logits_per_text = self._compute_logits(sign_embeds, text_embeds)
-        loss = self._compute_contrastive_loss(logits_per_sign, logits_per_text) if return_loss else None
+        labels = None
+        if self.config.use_distributed_negatives and self._distributed_training_is_active():
+            logits_per_sign, logits_per_text, labels = self._compute_distributed_logits_and_labels(
+                sign_embeds,
+                text_embeds,
+            )
+        else:
+            logits_per_sign, logits_per_text = self._compute_logits(sign_embeds, text_embeds)
+        loss = self._compute_contrastive_loss(logits_per_sign, logits_per_text, labels) if return_loss else None
 
         return_dict = return_dict if return_dict is not None else self.config.return_dict
         if not return_dict:

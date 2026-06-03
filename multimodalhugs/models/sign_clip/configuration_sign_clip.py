@@ -36,6 +36,7 @@ class SignCLIPConfig(PretrainedConfig):
         projection_l2_norm: bool = True,
         logit_scale_init_value: float = 2.6592,
         max_logit_scale: float = 100.0,
+        use_distributed_negatives: bool = True,
         freeze_sign_encoder: bool = False,
         freeze_text_encoder: bool = False,
         freeze_sign_projection: bool = False,
@@ -66,6 +67,7 @@ class SignCLIPConfig(PretrainedConfig):
         self.projection_l2_norm = projection_l2_norm
         self.logit_scale_init_value = logit_scale_init_value
         self.max_logit_scale = max_logit_scale
+        self.use_distributed_negatives = use_distributed_negatives
         self.freeze_sign_encoder = freeze_sign_encoder
         self.freeze_text_encoder = freeze_text_encoder
         self.freeze_sign_projection = freeze_sign_projection
