@@ -29,6 +29,17 @@ echo "[multigpu-smoke] start=$(date -Iseconds)"
 
 nvidia-smi || true
 
+export ACCELERATE_USE_CPU=false
+export TORCH_DISTRIBUTED_DEFAULT_BACKEND=nccl
+
+pixi run python - <<'PY'
+import torch
+print(f"[multigpu-smoke] torch={torch.__version__}")
+print(f"[multigpu-smoke] cuda_available={torch.cuda.is_available()}")
+print(f"[multigpu-smoke] cuda_device_count={torch.cuda.device_count()}")
+print(f"[multigpu-smoke] nccl_available={torch.distributed.is_nccl_available()}")
+PY
+
 pixi run torchrun --standalone --nnodes=1 --nproc_per_node="${GPUS_PER_NODE}" \
   -m multimodalhugs.tasks.contrastive.contrastive_training \
   --config_path "${CONFIG_PATH}" \
