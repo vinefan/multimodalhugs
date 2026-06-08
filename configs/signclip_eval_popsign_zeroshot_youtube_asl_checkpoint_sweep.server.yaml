@@ -1,0 +1,32 @@
+# Base config for evaluating multiple YouTube-ASL SignCLIP checkpoints on
+# PopSign zero-shot retrieval. The Slurm sweep script overrides the model,
+# output directory, run name, and W&B tags for each checkpoint.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_v2_multigpu/train/checkpoint-3000"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/evals/popsign_zeroshot_youtube_asl_checkpoint_sweep/default"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-eval-popsign-zeroshot-youtube-asl-checkpoint-sweep"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+  retrieval_eval_direction: "v2t"
+
+  per_device_eval_batch_size: 128
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-popsign"
+  wandb_tags: "signclip,popsign,eval,zeroshot,youtube-asl,server,v2t,checkpoint-sweep"
