@@ -30,6 +30,12 @@ class ContrastiveModelArguments:
         default=False,
         metadata={"help": "Whether to trust remote code when loading Hugging Face artifacts."},
     )
+    use_distributed_negatives: Optional[bool] = field(
+        default=None,
+        metadata={
+            "help": "Optional runtime override for cross-GPU negatives in SignCLIP."
+        },
+    )
 
 
 @dataclass

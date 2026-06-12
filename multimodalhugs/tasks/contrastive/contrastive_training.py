@@ -231,6 +231,7 @@ def _append_experiment_record(
         "config_path": extra_args.config_path,
         "setup_path": extra_args.setup_path,
         "model_name_or_path": model_args.model_name_or_path,
+        "use_distributed_negatives": model_args.use_distributed_negatives,
         "processor_name_or_path": processor_args.processor_name_or_path,
         "dataset_dir": data_args.dataset_dir,
         "train_ordering_strategy": data_args.train_ordering_strategy,
@@ -280,6 +281,12 @@ def _load_config(model_args: ContrastiveModelArguments) -> SignCLIPConfig:
     )
     if not isinstance(config, SignCLIPConfig):
         config = SignCLIPConfig(**config.to_dict())
+    if model_args.use_distributed_negatives is not None:
+        config.use_distributed_negatives = model_args.use_distributed_negatives
+        logger.info(
+            "Overriding use_distributed_negatives=%s",
+            config.use_distributed_negatives,
+        )
     return config
 
 
