@@ -141,3 +141,29 @@ partition, a separately named low-priority run uses:
 
 The output directory, W&B run name, Slurm job name, and log files are separate
 from both the queued standard H100 run and the completed V100 run.
+
+### Direction 1 V100 Batch-128 Run
+
+An additional V100 run tests whether the local-negative result holds at the
+same per-device training batch size as the H100 experiment:
+
+- `4 x V100` on `lowprio`
+- CPU memory request: `64G`
+- time limit: `3 hours`
+- per-device train batch size: `128`
+- per-device eval batch size: `64`
+- global samples processed per optimizer step: `512`
+- dataloader workers: `2` per rank, `8` total
+- maximum training steps: `1000`
+- training-loss logging interval: `10` steps
+- evaluation interval: `50` steps
+- checkpoint saving: disabled
+
+Expected random-loss baselines:
+
+- train: `ln(128) = 4.852`
+- eval: `ln(64) = 4.159`
+
+This run may exceed V100 device memory. An early CUDA OOM would establish that
+the batch-128 comparison requires a higher-memory GPU or a different memory
+strategy.
