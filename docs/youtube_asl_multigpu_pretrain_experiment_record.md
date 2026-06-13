@@ -86,9 +86,9 @@ Useful diagnostics for both variants:
 - sign/text embedding standard deviation
 - gradient norm
 
-### Direction 1 Smoke Configuration
+### Direction 1 H100 Smoke Configuration
 
-The first diagnostic smoke run uses:
+The queued H100 diagnostic smoke run uses:
 
 - `4 x H100`
 - per-device batch size: `128`
@@ -101,6 +101,7 @@ The first diagnostic smoke run uses:
 - training-loss logging interval: `10` steps
 - evaluation interval: `50` steps
 - checkpoint saving: disabled
+- dataloader workers: `1` per rank, `4` total
 
 Primary checks:
 
@@ -108,3 +109,19 @@ Primary checks:
 - eval loss should begin near `ln(64) = 4.159`, not `ln(256) = 5.545`
 - gradient norm should remain meaningfully non-zero
 - train and eval loss should start moving below their local random baselines
+
+### Direction 1 V100 Smoke Configuration
+
+The separately named low-priority V100 run uses:
+
+- `4 x V100`
+- per-device train and eval batch size: `32`
+- local contrastive matrix per rank: `32 x 32`
+- global samples processed per optimizer step: `128`
+- dataloader workers: `1` per rank, `4` total
+- maximum training steps: `300`
+- training-loss logging interval: `10` steps
+- evaluation interval: `50` steps
+- checkpoint saving: disabled
+
+Its train and eval random-loss baseline is `ln(32) = 3.466`.
