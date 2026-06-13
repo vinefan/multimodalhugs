@@ -125,3 +125,19 @@ The separately named low-priority V100 run uses:
 - checkpoint saving: disabled
 
 Its train and eval random-loss baseline is `ln(32) = 3.466`.
+
+### Direction 1 Low-Priority H100 Smoke Configuration
+
+To reproduce the original H100 batch setting without waiting for the standard
+partition, a separately named low-priority run uses:
+
+- `4 x H100` on `lowprio`
+- CPU memory request: `80G`
+- time limit: `2 hours`
+- per-device train batch size: `128`
+- per-device eval batch size: `64`
+- dataloader workers: `1` per rank, `4` total
+- all training and evaluation intervals identical to the standard H100 smoke
+
+The output directory, W&B run name, Slurm job name, and log files are separate
+from both the queued standard H100 run and the completed V100 run.

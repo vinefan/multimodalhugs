@@ -1,0 +1,47 @@
+# Direction 1 low-priority H100 smoke test with local negatives per DDP rank.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/model"
+  use_distributed_negatives: false
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/datasets/default"
+  train_ordering_strategy: "default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_multigpu_local_negatives_h100_lowprio_smoke"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-pretrain-youtube-asl-multigpu-local-negatives-h100-lowprio-smoke"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+
+  per_device_train_batch_size: 128
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 1
+  dataloader_drop_last: true
+
+  learning_rate: 5.0e-5
+  lr_scheduler_type: "linear"
+  weight_decay: 0.0
+  max_steps: 300
+  warmup_steps: 10
+
+  logging_strategy: "steps"
+  logging_steps: 10
+  eval_strategy: "steps"
+  eval_steps: 50
+  save_strategy: "no"
+
+  dataloader_num_workers: 1
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-asl"
+  wandb_tags: "signclip,youtube-asl,pretrain,smoke,multigpu,local-negatives,direction-1,h100,lowprio"
