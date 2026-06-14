@@ -122,3 +122,21 @@ class ContrastiveTrainingArguments(TrainingArguments):
         default=None,
         metadata={"help": "Optional comma-separated Weights & Biases tags for this run."},
     )
+    fixed_train_loss_steps: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Optional interval for evaluating a fixed training batch without updating parameters."
+        },
+    )
+    fixed_train_loss_samples: int = field(
+        default=128,
+        metadata={"help": "Number of deterministic training samples used by the fixed-loss probe."},
+    )
+    fixed_train_loss_seed: int = field(
+        default=42,
+        metadata={"help": "Seed used to select samples for the fixed-loss probe."},
+    )
+    fixed_train_loss_at_epoch_end: bool = field(
+        default=True,
+        metadata={"help": "Whether to measure fixed training loss at exact epoch boundaries."},
+    )

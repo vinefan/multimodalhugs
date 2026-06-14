@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import datasets
+import torch
 import transformers
 from datasets import load_from_disk
 from torch.utils.data import DataLoader, SequentialSampler
@@ -50,9 +51,21 @@ logger = logging.getLogger(__name__)
 
 
 class ContrastiveTrainer(Trainer):
-    def __init__(self, *args, train_ordering_strategy: str = "default", **kwargs):
+    def __init__(
+        self,
+        *args,
+        train_ordering_strategy: str = "default",
+        fixed_train_batch=None,
+        fixed_train_loss_steps: Optional[int] = None,
+        fixed_train_loss_at_epoch_end: bool = True,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.train_ordering_strategy = train_ordering_strategy
+        self.fixed_train_batch = fixed_train_batch
+        self.fixed_train_loss_steps = fixed_train_loss_steps
+        self.fixed_train_loss_at_epoch_end = fixed_train_loss_at_epoch_end
+        self._last_fixed_train_loss_step = None
 
     def _get_train_sampler(self):
         if self.train_ordering_strategy == "fairseq_round_robin":
@@ -61,6 +74,50 @@ class ContrastiveTrainer(Trainer):
             logger.info("Using SequentialSampler to preserve fairseq_round_robin training order.")
             return SequentialSampler(self.train_dataset)
         return super()._get_train_sampler()
+
+    def _should_measure_fixed_train_loss(self, epoch: Optional[float]) -> bool:
+        if self.fixed_train_batch is None or self.state.global_step <= 0:
+            return False
+        if self._last_fixed_train_loss_step == self.state.global_step:
+            return False
+
+        interval_due = (
+            self.fixed_train_loss_steps is not None
+            and self.fixed_train_loss_steps > 0
+            and self.state.global_step % self.fixed_train_loss_steps == 0
+        )
+        epoch_due = (
+            self.fixed_train_loss_at_epoch_end
+            and epoch is not None
+            and abs(epoch - round(epoch)) < 1e-6
+        )
+        return interval_due or epoch_due
+
+    def _measure_fixed_train_loss(self, model) -> float:
+        was_training = model.training
+        model.eval()
+        try:
+            inputs = self._prepare_inputs(self.fixed_train_batch)
+            with torch.inference_mode(), self.compute_loss_context_manager():
+                loss = self.compute_loss(model, inputs)
+            return loss.detach().float().item()
+        finally:
+            if was_training:
+                model.train()
+
+    def _maybe_log_save_evaluate(self, tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval):
+        super()._maybe_log_save_evaluate(
+            tr_loss,
+            grad_norm,
+            model,
+            trial,
+            epoch,
+            ignore_keys_for_eval,
+        )
+        if self._should_measure_fixed_train_loss(epoch):
+            fixed_loss = self._measure_fixed_train_loss(model)
+            self._last_fixed_train_loss_step = self.state.global_step
+            self.log({"fixed_train_loss": round(fixed_loss, 6)})
 
 
 def _apply_train_ordering(split_dataset, strategy: str):
@@ -316,6 +373,27 @@ def _prepare_dataset(split_dataset, max_samples: Optional[int], processor: SignC
     return dataset
 
 
+def _build_fixed_train_batch(
+    train_dataset,
+    data_collator: DataCollatorContrastive,
+    sample_count: int,
+    seed: int,
+):
+    if sample_count <= 0:
+        raise ValueError("fixed_train_loss_samples must be greater than zero.")
+
+    selected_count = min(sample_count, len(train_dataset))
+    generator = torch.Generator().manual_seed(seed)
+    indices = torch.randperm(len(train_dataset), generator=generator)[:selected_count].tolist()
+    samples = [train_dataset[index] for index in indices]
+    logger.info(
+        "Prepared fixed training-loss probe with %s samples using seed %s.",
+        selected_count,
+        seed,
+    )
+    return data_collator(samples)
+
+
 def _run_retrieval_eval(
     model: SignCLIPModel,
     eval_dataset,
@@ -396,6 +474,18 @@ def main():
         return {}
 
     data_collator = DataCollatorContrastive(processor=processor)
+    fixed_train_batch = None
+    if training_args.fixed_train_loss_steps is not None:
+        if training_args.fixed_train_loss_steps <= 0:
+            raise ValueError("fixed_train_loss_steps must be greater than zero.")
+        if train_dataset is None:
+            raise ValueError("fixed_train_loss_steps requires do_train=true and a training dataset.")
+        fixed_train_batch = _build_fixed_train_batch(
+            train_dataset=train_dataset,
+            data_collator=data_collator,
+            sample_count=training_args.fixed_train_loss_samples,
+            seed=training_args.fixed_train_loss_seed,
+        )
 
     callbacks = []
     if training_args.early_stopping_patience is not None:
@@ -409,6 +499,9 @@ def main():
         data_collator=data_collator,
         callbacks=callbacks,
         train_ordering_strategy=data_args.train_ordering_strategy,
+        fixed_train_batch=fixed_train_batch,
+        fixed_train_loss_steps=training_args.fixed_train_loss_steps,
+        fixed_train_loss_at_epoch_end=training_args.fixed_train_loss_at_epoch_end,
     )
 
     metrics_result = {}

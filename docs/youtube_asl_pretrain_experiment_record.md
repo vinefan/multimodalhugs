@@ -180,3 +180,33 @@ In the current train sample analysis:
 
 This should be treated as a dataset integrity issue rather than a processor or
 timing-field issue.
+
+## Fixed Training-Loss Probe
+
+The single-GPU runs show a train-loss drop approximately every `4024` steps,
+which matches one epoch:
+
+`515023 / 128 ~= 4024`
+
+To distinguish a real epoch-boundary model change from changing training
+batches, a diagnostic run evaluates one deterministic batch of `128` training
+pairs throughout training.
+
+The probe:
+
+- selects the samples once with a fixed seed
+- preserves their order and in-batch negative pairs
+- pre-collates the batch before training
+- switches the model to evaluation mode
+- disables gradient computation and parameter updates
+- records `fixed_train_loss` every `100` steps
+- records an additional point at exact epoch boundaries
+
+Interpretation:
+
+- smooth fixed loss with stair-stepped ordinary train loss points to changing
+  batches, negative composition, or train-loss statistics
+- an epoch-boundary jump in both losses points to a real model or training-state
+  change
+- falling fixed loss with rising validation loss is direct evidence of
+  training-set overfitting
