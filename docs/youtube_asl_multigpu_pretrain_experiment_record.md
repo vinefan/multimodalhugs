@@ -167,3 +167,20 @@ Expected random-loss baselines:
 This run may exceed V100 device memory. An early CUDA OOM would establish that
 the batch-128 comparison requires a higher-memory GPU or a different memory
 strategy.
+
+## Direction 1 Extended Run
+
+After the local-negative H100 smoke run moved below the random-loss baseline,
+prepare a longer run with the same contrastive setup:
+
+- GPUs: `4 x H100`
+- per-device train batch size: `128`
+- global train batch size: `512`
+- negatives: local to each rank (`128` candidates per sample)
+- maximum training steps: `5000`
+- learning rate: `5e-5`
+- warmup steps: `500`
+- train-loss logging: every `100` steps
+- evaluation: every `500` steps
+- checkpoint saving: every `1000` steps
+- Slurm time limit: `24 hours`
