@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:H100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=/home/faxu/scratch/signclip/logs/%x-%j.out
 #SBATCH --error=/home/faxu/scratch/signclip/logs/%x-%j.err
 

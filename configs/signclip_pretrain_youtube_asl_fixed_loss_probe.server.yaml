@@ -27,7 +27,7 @@ training:
   learning_rate: 5.0e-5
   lr_scheduler_type: "linear"
   weight_decay: 0.0
-  num_train_epochs: 2
+  num_train_epochs: 10
   warmup_steps: 1000
 
   logging_strategy: "steps"
