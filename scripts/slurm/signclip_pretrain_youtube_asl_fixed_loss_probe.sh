@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=signclip-ytasl-fixed-loss-probe
+#SBATCH --job-name=signclip-ytasl-fixed-loss-probe-v2
 #SBATCH --partition=standard
 #SBATCH --gres=gpu:H100:1
 #SBATCH --cpus-per-task=8
@@ -17,13 +17,13 @@ LOGS_ROOT="${LOGS_ROOT:-/home/faxu/scratch/signclip/logs}"
 mkdir -p "${LOGS_ROOT}"
 cd "${REPO_PATH}"
 
-echo "[fixed-loss-probe] host=$(hostname)"
-echo "[fixed-loss-probe] config=${CONFIG_PATH}"
-echo "[fixed-loss-probe] start=$(date -Iseconds)"
+echo "[fixed-loss-probe-v2] host=$(hostname)"
+echo "[fixed-loss-probe-v2] config=${CONFIG_PATH}"
+echo "[fixed-loss-probe-v2] start=$(date -Iseconds)"
 
 nvidia-smi || true
 
 pixi run python -m multimodalhugs.tasks.contrastive.contrastive_training \
   --config_path "${CONFIG_PATH}"
 
-echo "[fixed-loss-probe] done=$(date -Iseconds)"
+echo "[fixed-loss-probe-v2] done=$(date -Iseconds)"

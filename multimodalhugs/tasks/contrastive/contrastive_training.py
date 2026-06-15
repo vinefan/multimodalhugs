@@ -114,7 +114,7 @@ class ContrastiveTrainer(Trainer):
             epoch,
             ignore_keys_for_eval,
         )
-        if self._should_measure_fixed_train_loss(epoch):
+        if self._should_measure_fixed_train_loss(self.state.epoch):
             fixed_loss = self._measure_fixed_train_loss(model)
             self._last_fixed_train_loss_step = self.state.global_step
             self.log({"fixed_train_loss": round(fixed_loss, 6)})

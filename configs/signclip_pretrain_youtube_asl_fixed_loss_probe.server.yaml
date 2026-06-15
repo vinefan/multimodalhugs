@@ -11,10 +11,10 @@ data:
   train_ordering_strategy: "default"
 
 training:
-  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_fixed_loss_probe"
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_fixed_loss_probe_v2"
   overwrite_output_dir: true
   remove_unused_columns: false
-  run_name: "signclip-pretrain-youtube-asl-fixed-loss-probe"
+  run_name: "signclip-pretrain-youtube-asl-fixed-loss-probe-v2"
 
   do_train: true
   do_eval: true
@@ -47,4 +47,4 @@ training:
   report_to:
     - wandb
   wandb_project: "multimodalhugs-signclip-youtube-asl"
-  wandb_tags: "signclip,youtube-asl,pretrain,diagnostic,fixed-train-loss,epoch-boundary,single-gpu"
+  wandb_tags: "signclip,youtube-asl,pretrain,diagnostic,fixed-train-loss,epoch-boundary,single-gpu,v2"
