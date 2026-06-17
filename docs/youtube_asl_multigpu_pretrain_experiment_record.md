@@ -191,6 +191,25 @@ The first 24-hour `4 x H100` local-negative run finished before reaching the
 configured `5000` total optimizer steps. Treat its latest checkpoint as an
 intermediate state and resume from it to complete the intended 5k-step run.
 
+Observed checkpoint state:
+
+- latest saved checkpoint: `checkpoint-3000`
+- remaining target: continue from step `3000` to total `max_steps=5000`
+- estimated additional steps: about `2000`
+- resume time request: `24 hours`, expected to be sufficient based on the
+  first 24-hour run reaching step `3000`
+
+Resume behavior assumptions:
+
+- `--resume_from_checkpoint` restores model weights, optimizer state,
+  scheduler state, Trainer state, and RNG state.
+- The linear learning-rate schedule should continue from the checkpoint state,
+  not restart warmup or reset to the initial learning rate.
+- The original checkpoint policy remains active: `save_steps: 1000` and
+  `save_total_limit: 5`.
+- Continuing from `checkpoint-3000` should save `checkpoint-4000` and
+  especially the target `checkpoint-5000`.
+
 Useful checkpoint inspection commands:
 
 ```bash
