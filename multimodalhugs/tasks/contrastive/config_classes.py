@@ -122,3 +122,24 @@ class ContrastiveTrainingArguments(TrainingArguments):
         default=None,
         metadata={"help": "Optional comma-separated Weights & Biases tags for this run."},
     )
+    batch_distribution_probe_path: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Optional JSONL output path for per-training-step batch statistics. "
+                "Relative paths are resolved under output_dir."
+            )
+        },
+    )
+    batch_distribution_probe_steps: Optional[int] = field(
+        default=None,
+        metadata={"help": "Record batch-distribution probe rows every N optimizer steps."},
+    )
+    batch_distribution_probe_window_size: int = field(
+        default=100,
+        metadata={"help": "Rolling window size used for probe window_loss_mean."},
+    )
+    batch_distribution_probe_include_hashes: bool = field(
+        default=True,
+        metadata={"help": "Whether to include per-sample stable hashes in the batch-distribution probe JSONL."},
+    )

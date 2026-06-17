@@ -6,10 +6,12 @@ import os
 import sys
 import json
 import subprocess
-from collections import defaultdict
+import hashlib
+import math
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import datasets
 import transformers
@@ -53,6 +55,12 @@ class ContrastiveTrainer(Trainer):
     def __init__(self, *args, train_ordering_strategy: str = "default", **kwargs):
         super().__init__(*args, **kwargs)
         self.train_ordering_strategy = train_ordering_strategy
+        self._batch_probe_loss_window = deque(maxlen=max(1, self.args.batch_distribution_probe_window_size))
+        self._batch_probe_path = self._resolve_batch_distribution_probe_path()
+        if self._batch_probe_path is not None and self.is_world_process_zero():
+            self._batch_probe_path.parent.mkdir(parents=True, exist_ok=True)
+            if self.args.overwrite_output_dir and self._batch_probe_path.exists():
+                self._batch_probe_path.unlink()
 
     def _get_train_sampler(self):
         if self.train_ordering_strategy == "fairseq_round_robin":
@@ -61,6 +69,145 @@ class ContrastiveTrainer(Trainer):
             logger.info("Using SequentialSampler to preserve fairseq_round_robin training order.")
             return SequentialSampler(self.train_dataset)
         return super()._get_train_sampler()
+
+    def _resolve_batch_distribution_probe_path(self) -> Optional[Path]:
+        probe_path = getattr(self.args, "batch_distribution_probe_path", None)
+        if not probe_path:
+            return None
+        path = Path(probe_path)
+        if not path.is_absolute():
+            path = Path(self.args.output_dir) / path
+        return path
+
+    def _batch_distribution_probe_enabled(self) -> bool:
+        return self._batch_probe_path is not None and self.args.batch_distribution_probe_steps is not None
+
+    @staticmethod
+    def _summarize_numbers(values: list[float]) -> dict[str, Optional[float]]:
+        if not values:
+            return {
+                "min": None,
+                "p50": None,
+                "p90": None,
+                "p95": None,
+                "max": None,
+                "mean": None,
+            }
+        ordered = sorted(float(value) for value in values)
+
+        def percentile(percent: float) -> float:
+            if len(ordered) == 1:
+                return ordered[0]
+            index = (len(ordered) - 1) * percent
+            lower = math.floor(index)
+            upper = math.ceil(index)
+            if lower == upper:
+                return ordered[int(index)]
+            weight = index - lower
+            return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+        return {
+            "min": ordered[0],
+            "p50": percentile(0.50),
+            "p90": percentile(0.90),
+            "p95": percentile(0.95),
+            "max": ordered[-1],
+            "mean": sum(ordered) / len(ordered),
+        }
+
+    @staticmethod
+    def _stable_hash(value: Any) -> str:
+        return hashlib.sha1(str(value).encode("utf-8")).hexdigest()[:16]
+
+    def _infer_steps_per_epoch(self) -> Optional[int]:
+        if self.train_dataset is None or not hasattr(self.train_dataset, "__len__"):
+            return None
+        train_size = len(self.train_dataset)
+        if train_size <= 0:
+            return None
+        batch_size = max(1, self.args.train_batch_size)
+        micro_batches = train_size // batch_size if self.args.dataloader_drop_last else math.ceil(train_size / batch_size)
+        return max(1, math.ceil(micro_batches / max(1, self.args.gradient_accumulation_steps)))
+
+    def _build_batch_distribution_probe_row(self, inputs: dict[str, Any], step: int, batch_loss: float) -> dict[str, Any]:
+        self._batch_probe_loss_window.append(batch_loss)
+        window_values = list(self._batch_probe_loss_window)
+        sign_attention_mask = inputs.get("sign_attention_mask")
+        attention_mask = inputs.get("attention_mask")
+
+        frame_lengths = []
+        if sign_attention_mask is not None:
+            frame_lengths = sign_attention_mask.detach().sum(dim=1).cpu().tolist()
+
+        text_lengths = []
+        if attention_mask is not None:
+            text_lengths = attention_mask.detach().sum(dim=1).cpu().tolist()
+
+        sources = [str(value) for value in inputs.get("signal", [])]
+        outputs = [str(value) for value in inputs.get("output", [])]
+        starts = inputs.get("signal_start", [])
+        ends = inputs.get("signal_end", [])
+        prompts = inputs.get("encoder_prompt", [])
+
+        if sources:
+            batch_size = len(sources)
+        elif sign_attention_mask is not None:
+            batch_size = int(sign_attention_mask.shape[0])
+        else:
+            batch_size = None
+        steps_per_epoch = self._infer_steps_per_epoch()
+        inferred_epoch = None
+        batch_index_in_epoch = None
+        if steps_per_epoch is not None:
+            inferred_epoch = (step - 1) // steps_per_epoch + 1
+            batch_index_in_epoch = (step - 1) % steps_per_epoch + 1
+
+        row = {
+            "global_step": step,
+            "trainer_epoch": self.state.epoch,
+            "inferred_epoch": inferred_epoch,
+            "batch_index_in_epoch": batch_index_in_epoch,
+            "batch_loss": batch_loss,
+            f"window_loss_mean_{self.args.batch_distribution_probe_window_size}": sum(window_values) / len(window_values),
+            "batch_size": batch_size,
+            "frame_lengths": self._summarize_numbers(frame_lengths),
+            "text_lengths": self._summarize_numbers(text_lengths),
+            "num_unique_sources": len(set(sources)) if sources else None,
+            "num_unique_outputs": len(set(outputs)) if outputs else None,
+        }
+
+        if self.args.batch_distribution_probe_include_hashes and sources:
+            sample_hashes = []
+            source_hashes = []
+            for index, source in enumerate(sources):
+                start = starts[index] if index < len(starts) else ""
+                end = ends[index] if index < len(ends) else ""
+                output = outputs[index] if index < len(outputs) else ""
+                prompt = prompts[index] if index < len(prompts) else ""
+                source_hashes.append(self._stable_hash(source))
+                sample_hashes.append(self._stable_hash(f"{source}\t{start}\t{end}\t{prompt}\t{output}"))
+            row["source_hashes"] = source_hashes
+            row["sample_hashes"] = sample_hashes
+
+        return row
+
+    def _write_batch_distribution_probe_row(self, row: dict[str, Any]) -> None:
+        if self._batch_probe_path is None or not self.is_world_process_zero():
+            return
+        with self._batch_probe_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    def training_step(self, model, inputs):
+        loss = super().training_step(model, inputs)
+
+        if self._batch_distribution_probe_enabled() and self.is_world_process_zero():
+            step = self.state.global_step + 1
+            if step % self.args.batch_distribution_probe_steps == 0:
+                batch_loss = float(loss.detach().float().item()) * max(1, self.args.gradient_accumulation_steps)
+                row = self._build_batch_distribution_probe_row(inputs, step, batch_loss)
+                self._write_batch_distribution_probe_row(row)
+
+        return loss
 
 
 def _apply_train_ordering(split_dataset, strategy: str):
@@ -395,7 +542,18 @@ def main():
         logger.info("There is nothing to do. Please pass `do_train` and/or `do_eval`.")
         return {}
 
-    data_collator = DataCollatorContrastive(processor=processor)
+    data_collator = DataCollatorContrastive(
+        processor=processor,
+        include_metadata=bool(training_args.batch_distribution_probe_path),
+        metadata_keys=[
+            "idx",
+            "signal",
+            "signal_start",
+            "signal_end",
+            "output",
+            "encoder_prompt",
+        ],
+    )
 
     callbacks = []
     if training_args.early_stopping_patience is not None:
