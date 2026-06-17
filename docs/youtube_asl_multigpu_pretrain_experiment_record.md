@@ -184,3 +184,34 @@ prepare a longer run with the same contrastive setup:
 - evaluation: every `500` steps
 - checkpoint saving: every `1000` steps
 - Slurm time limit: `24 hours`
+
+### Direction 1 Extended Run Status
+
+The first 24-hour `4 x H100` local-negative run finished before reaching the
+configured `5000` total optimizer steps. Treat its latest checkpoint as an
+intermediate state and resume from it to complete the intended 5k-step run.
+
+Useful checkpoint inspection commands:
+
+```bash
+RUN_ROOT=/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_multigpu_local_negatives_5000steps
+
+ls -ldh "$RUN_ROOT"/train/checkpoint-* 2>/dev/null | sort -V
+find "$RUN_ROOT"/train -maxdepth 1 -type d -name 'checkpoint-*' | sort -V | tail -n 1
+```
+
+Useful log inspection commands:
+
+```bash
+ls -lt /home/faxu/scratch/signclip/logs/signclip-ytasl-mgpu-localneg-5k-*.out | head
+ls -lt /home/faxu/scratch/signclip/logs/signclip-ytasl-mgpu-localneg-5k-*.err | head
+```
+
+Resume script:
+
+- `scripts/slurm/signclip_pretrain_youtube_asl_multigpu_local_negatives_5000steps_resume.sh`
+
+The resume script automatically finds the latest checkpoint under the original
+run directory and passes it through `--resume_from_checkpoint`. The config still
+uses `max_steps: 5000`, so the resumed job should continue until the total
+optimizer step count reaches 5000, not add another 5000 steps.
