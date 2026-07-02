@@ -82,6 +82,31 @@ class SignCLIPVideoTokenMLP(nn.Module):
         return hidden_states
 
 
+class _AllGatherWithGrad(torch.autograd.Function):
+    """
+    All-gather features while preserving cross-rank gradients.
+
+    Each rank computes a local slice of the global CLIP loss. During backward,
+    the gradient for this rank's local features may be produced on every other
+    rank where the local features appeared as gathered candidates, so those
+    per-rank gradients must be summed and returned to the original rank.
+    """
+
+    @staticmethod
+    def forward(ctx, features: torch.Tensor):
+        world_size = dist.get_world_size()
+        ctx.rank = dist.get_rank()
+        gathered_features = [torch.empty_like(features) for _ in range(world_size)]
+        dist.all_gather(gathered_features, features)
+        return tuple(gathered_features)
+
+    @staticmethod
+    def backward(ctx, *grad_outputs):
+        grad_output = grad_outputs[ctx.rank].contiguous()
+        dist.all_reduce(grad_output, op=dist.ReduceOp.SUM)
+        return grad_output
+
+
 @register_model("sign_clip")
 class SignCLIPModel(PreTrainedModel):
     """
@@ -343,14 +368,7 @@ class SignCLIPModel(PreTrainedModel):
 
     @staticmethod
     def _gather_distributed_features(features: torch.Tensor) -> torch.Tensor:
-        world_size = dist.get_world_size()
-        rank = dist.get_rank()
-        gathered_features = [torch.empty_like(features) for _ in range(world_size)]
-        dist.all_gather(gathered_features, features)
-        # Keep gradients for the local slice while using remote features as negatives.
-        # This avoids torch.distributed.nn.functional.all_gather backward, which
-        # requires all_to_all and is unsupported by the gloo backend.
-        gathered_features[rank] = features
+        gathered_features = _AllGatherWithGrad.apply(features)
         return torch.cat(gathered_features, dim=0)
 
     def _compute_distributed_logits_and_labels(

@@ -168,6 +168,36 @@ This run may exceed V100 device memory. An early CUDA OOM would establish that
 the batch-128 comparison requires a higher-memory GPU or a different memory
 strategy.
 
+## Attempt Direction 2: Differentiable Global Negatives
+
+The local-negative fix is a stable data-parallel baseline, but it does not
+recover the full CLIP-style large-batch objective. With local negatives, each
+query only sees candidates from its own rank.
+
+Direction 2 restores cross-GPU candidates while making the gather operation
+autograd-aware:
+
+- each rank still computes a local `128 x 512` contrastive matrix
+- each query sees the full global batch as candidates
+- gathered remote features can receive candidate-side gradients from other
+  ranks
+- backward sums the feature-gradient slice belonging to the original rank
+  across all ranks
+- DDP then averages the resulting parameter gradients
+
+This should be closer to the single-process global-batch CLIP objective than
+the earlier `all_gather + local-slice replacement` implementation.
+
+Expected random-loss baselines return to the global candidate counts:
+
+- train: `ln(512) = 6.238`
+- eval: `ln(256) = 5.545`
+
+Therefore, loss values should not be compared directly with local-negative
+runs. The important diagnostics are whether gradient norm remains non-zero,
+whether train/eval loss move below their global random baselines, and whether
+PopSign zero-shot retrieval improves.
+
 ## Direction 1 Extended Run
 
 After the local-negative H100 smoke run moved below the random-loss baseline,
