@@ -102,9 +102,10 @@ class _AllGatherWithGrad(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_outputs):
-        grad_output = grad_outputs[ctx.rank].contiguous()
-        dist.all_reduce(grad_output, op=dist.ReduceOp.SUM)
-        return grad_output
+        # Sum gradients by gathered feature chunk, not by each rank's local output.
+        gathered_grads = torch.stack([grad.contiguous() for grad in grad_outputs], dim=0)
+        dist.all_reduce(gathered_grads, op=dist.ReduceOp.SUM)
+        return gathered_grads[ctx.rank]
 
 
 @register_model("sign_clip")
