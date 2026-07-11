@@ -34,7 +34,9 @@ class SignCLIPConfig(PretrainedConfig):
         use_projection: bool = True,
         projection_dim: int = 512,
         projection_l2_norm: bool = True,
+        contrastive_loss_type: str = "clip",
         logit_scale_init_value: float = 2.6592,
+        logit_bias_init_value: float = -10.0,
         max_logit_scale: float = 100.0,
         use_distributed_negatives: bool = True,
         freeze_sign_encoder: bool = False,
@@ -65,7 +67,9 @@ class SignCLIPConfig(PretrainedConfig):
         self.use_projection = use_projection
         self.projection_dim = projection_dim
         self.projection_l2_norm = projection_l2_norm
+        self.contrastive_loss_type = contrastive_loss_type
         self.logit_scale_init_value = logit_scale_init_value
+        self.logit_bias_init_value = logit_bias_init_value
         self.max_logit_scale = max_logit_scale
         self.use_distributed_negatives = use_distributed_negatives
         self.freeze_sign_encoder = freeze_sign_encoder

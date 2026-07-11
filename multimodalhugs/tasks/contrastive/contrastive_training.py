@@ -232,6 +232,8 @@ def _append_experiment_record(
         "setup_path": extra_args.setup_path,
         "model_name_or_path": model_args.model_name_or_path,
         "use_distributed_negatives": model_args.use_distributed_negatives,
+        "contrastive_loss_type": model_args.contrastive_loss_type,
+        "logit_bias_init_value": model_args.logit_bias_init_value,
         "processor_name_or_path": processor_args.processor_name_or_path,
         "dataset_dir": data_args.dataset_dir,
         "train_ordering_strategy": data_args.train_ordering_strategy,
@@ -286,6 +288,18 @@ def _load_config(model_args: ContrastiveModelArguments) -> SignCLIPConfig:
         logger.info(
             "Overriding use_distributed_negatives=%s",
             config.use_distributed_negatives,
+        )
+    if model_args.contrastive_loss_type is not None:
+        config.contrastive_loss_type = model_args.contrastive_loss_type
+        logger.info(
+            "Overriding contrastive_loss_type=%s",
+            config.contrastive_loss_type,
+        )
+    if model_args.logit_bias_init_value is not None:
+        config.logit_bias_init_value = model_args.logit_bias_init_value
+        logger.info(
+            "Overriding logit_bias_init_value=%s",
+            config.logit_bias_init_value,
         )
     return config
 

@@ -44,6 +44,7 @@ def test_sign_clip_model_initialization():
     assert model.text_encoder is not None
     assert model.sign_token_mlp is not None
     assert model.logit_scale is not None
+    assert model.logit_bias is not None
     assert model.sign_projection is not None
     assert model.text_projection is not None
 
@@ -91,3 +92,36 @@ def test_sign_clip_model_forward():
     assert outputs.logits_per_text.shape == (2, 2)
     assert outputs.sign_embeds.shape == (2, 32)
     assert outputs.text_embeds.shape == (2, 32)
+
+
+def test_sign_clip_model_siglip_loss_forward():
+    torch.manual_seed(0)
+
+    config = _build_tiny_sign_clip_config()
+    config.contrastive_loss_type = "siglip"
+    model = SignCLIPModel(config)
+    model.eval()
+
+    sign_inputs = torch.randn(3, 5, 16)
+    sign_attention_mask = torch.ones(3, 5, dtype=torch.long)
+    input_ids = torch.tensor(
+        [
+            [1, 11, 12, 13, 2, 0],
+            [1, 21, 22, 2, 0, 0],
+            [1, 31, 32, 33, 2, 0],
+        ],
+        dtype=torch.long,
+    )
+    attention_mask = input_ids.ne(0).long()
+
+    outputs = model(
+        sign_inputs=sign_inputs,
+        sign_attention_mask=sign_attention_mask,
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+        return_loss=True,
+    )
+
+    assert outputs.loss is not None
+    assert outputs.logits_per_sign.shape == (3, 3)
+    assert outputs.logits_per_text.shape == (3, 3)

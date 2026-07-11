@@ -140,6 +140,9 @@ class SignCLIPModel(PreTrainedModel):
         self.logit_scale = torch.nn.Parameter(
             torch.tensor(config.logit_scale_init_value, dtype=torch.float32)
         )
+        self.logit_bias = torch.nn.Parameter(
+            torch.tensor(config.logit_bias_init_value, dtype=torch.float32)
+        )
         self._set_trainable_parameters(config)
         self.post_init()
 
@@ -360,6 +363,8 @@ class SignCLIPModel(PreTrainedModel):
 
         logit_scale = self.logit_scale.exp().clamp(max=self.config.max_logit_scale)
         logits_per_sign = logit_scale * torch.matmul(sign_features, text_features.transpose(0, 1))
+        if self.config.contrastive_loss_type == "siglip":
+            logits_per_sign = logits_per_sign + self.logit_bias
         logits_per_text = logits_per_sign.transpose(0, 1)
         return logits_per_sign, logits_per_text
 
@@ -387,6 +392,9 @@ class SignCLIPModel(PreTrainedModel):
         logit_scale = self.logit_scale.exp().clamp(max=self.config.max_logit_scale)
         logits_per_sign = logit_scale * torch.matmul(sign_features, global_text_features.transpose(0, 1))
         logits_per_text = logit_scale * torch.matmul(text_features, global_sign_features.transpose(0, 1))
+        if self.config.contrastive_loss_type == "siglip":
+            logits_per_sign = logits_per_sign + self.logit_bias
+            logits_per_text = logits_per_text + self.logit_bias
 
         rank = dist.get_rank()
         local_batch_size = sign_features.size(0)
@@ -405,6 +413,33 @@ class SignCLIPModel(PreTrainedModel):
         sign_loss = F.cross_entropy(logits_per_sign, labels)
         text_loss = F.cross_entropy(logits_per_text, labels)
         return 0.5 * (sign_loss + text_loss)
+
+    @staticmethod
+    def _compute_siglip_loss(
+        logits_per_sign: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if labels is None:
+            labels = torch.arange(logits_per_sign.size(0), device=logits_per_sign.device)
+
+        pair_labels = -torch.ones_like(logits_per_sign)
+        pair_labels.scatter_(1, labels.unsqueeze(1), 1.0)
+        return -F.logsigmoid(pair_labels * logits_per_sign).sum() / logits_per_sign.size(0)
+
+    def _compute_loss(
+        self,
+        logits_per_sign: torch.Tensor,
+        logits_per_text: torch.Tensor,
+        labels: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if self.config.contrastive_loss_type == "clip":
+            return self._compute_contrastive_loss(logits_per_sign, logits_per_text, labels)
+        if self.config.contrastive_loss_type == "siglip":
+            return self._compute_siglip_loss(logits_per_sign, labels)
+        raise ValueError(
+            "`contrastive_loss_type` must be either 'clip' or 'siglip', "
+            f"got {self.config.contrastive_loss_type!r}."
+        )
 
     def forward(
         self,
@@ -440,7 +475,7 @@ class SignCLIPModel(PreTrainedModel):
             )
         else:
             logits_per_sign, logits_per_text = self._compute_logits(sign_embeds, text_embeds)
-        loss = self._compute_contrastive_loss(logits_per_sign, logits_per_text, labels) if return_loss else None
+        loss = self._compute_loss(logits_per_sign, logits_per_text, labels) if return_loss else None
 
         return_dict = return_dict if return_dict is not None else self.config.return_dict
         if not return_dict:

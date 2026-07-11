@@ -36,6 +36,16 @@ class ContrastiveModelArguments:
             "help": "Optional runtime override for cross-GPU negatives in SignCLIP."
         },
     )
+    contrastive_loss_type: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Optional runtime override for SignCLIP loss. Supported values: `clip`, `siglip`."
+        },
+    )
+    logit_bias_init_value: Optional[float] = field(
+        default=None,
+        metadata={"help": "Optional runtime override for SigLIP-style learnable logit bias initialization."},
+    )
 
 
 @dataclass
