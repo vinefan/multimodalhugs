@@ -1,0 +1,25 @@
+# Final FingerCLIP retrieval evaluation for the 4-GPU SigLIP ring run.
+
+model:
+  model_name_or_path: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_siglip_ring_bs16_25ep/train"
+
+processor:
+  processor_name_or_path: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_siglip_ring_bs16_25ep/train"
+
+data:
+  dataset_dir: "/home/xf/local/scratch/signclip/setup/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+
+training:
+  output_dir: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_siglip_ring_bs16_25ep/eval_final"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "fingerclip-multigpu-siglip-ring-bs16-25ep-final-eval"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+
+  per_device_eval_batch_size: 16
+  dataloader_num_workers: 0
+  seed: 42
+  report_to: []
