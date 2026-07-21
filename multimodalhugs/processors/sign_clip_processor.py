@@ -26,6 +26,7 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
         reduce_holistic_poses: bool = True,
         skip_frames_stride: Optional[int] = None,
         pose_components: Optional[list[str]] = None,
+        max_sign_frames: Optional[int] = None,
         **kwargs,
     ):
         obtainables_list = kwargs.pop(
@@ -40,6 +41,7 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
         self.reduce_holistic_poses = reduce_holistic_poses
         self.skip_frames_stride = skip_frames_stride
         self.pose_components = pose_components
+        self.max_sign_frames = max_sign_frames
 
     def _signal_to_tensor(
         self,
@@ -83,6 +85,8 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
         tensor = tensor.float()
         if self.skip_frames_stride is not None:
             tensor = frame_skipping(x=tensor, t_dim=0, stride=self.skip_frames_stride)
+        if self.max_sign_frames is not None:
+            tensor = tensor[: self.max_sign_frames]
         return tensor
 
     def _obtain_multimodal_input_and_masks(self, batch, **kwargs):

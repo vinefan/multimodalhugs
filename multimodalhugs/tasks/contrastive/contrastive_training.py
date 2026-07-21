@@ -434,6 +434,15 @@ def main():
 
     processor = _load_processor(processor_args)
     config = _load_config(model_args)
+    if (
+        processor.max_sign_frames is None
+        or processor.max_sign_frames > config.sign_max_position_embeddings
+    ):
+        processor.max_sign_frames = config.sign_max_position_embeddings
+        logger.info(
+            "Capping sign inputs at %s frames to match model position embeddings.",
+            processor.max_sign_frames,
+        )
     model = _load_model(model_args, config)
 
     train_dataset = None
