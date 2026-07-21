@@ -8,12 +8,13 @@ processor:
 
 data:
   dataset_dir: "/home/xf/local/scratch/signclip/setup/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+  eval_split_name: "test"
 
 training:
-  output_dir: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_softmax_global_bs16_25ep/eval_final"
+  output_dir: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_softmax_global_bs16_25ep/eval_test"
   overwrite_output_dir: true
   remove_unused_columns: false
-  run_name: "fingerclip-multigpu-softmax-global-bs16-25ep-final-eval"
+  run_name: "fingerclip-multigpu-softmax-global-bs16-25ep-test-eval"
 
   do_train: false
   do_eval: true

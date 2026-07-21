@@ -80,6 +80,10 @@ class ContrastiveDataArguments:
         default=None,
         metadata={"help": "Optional cap on the number of evaluation samples."},
     )
+    eval_split_name: str = field(
+        default="validation",
+        metadata={"help": "Dataset split used by loss and retrieval evaluation."},
+    )
     train_ordering_strategy: str = field(
         default="default",
         metadata={"help": "Training-set ordering strategy. Supported values: `default`, `fairseq_round_robin`."},

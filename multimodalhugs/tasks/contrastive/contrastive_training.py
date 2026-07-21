@@ -257,6 +257,7 @@ def _append_experiment_record(
         "siglip_distributed_implementation": model_args.siglip_distributed_implementation,
         "processor_name_or_path": processor_args.processor_name_or_path,
         "dataset_dir": data_args.dataset_dir,
+        "eval_split_name": data_args.eval_split_name,
         "train_ordering_strategy": data_args.train_ordering_strategy,
         "run_retrieval_eval": training_args.run_retrieval_eval,
         "report_to": _to_builtin(training_args.report_to),
@@ -444,9 +445,15 @@ def main():
         train_dataset = _prepare_dataset(ordered_train_dataset, data_args.max_train_samples, processor)
 
     if training_args.do_eval:
-        if "validation" not in raw_datasets:
-            raise ValueError("--do_eval requires a validation dataset")
-        eval_dataset = _prepare_dataset(raw_datasets["validation"], data_args.max_eval_samples, processor)
+        if data_args.eval_split_name not in raw_datasets:
+            raise ValueError(
+                f"--do_eval requires the requested `{data_args.eval_split_name}` dataset split"
+            )
+        eval_dataset = _prepare_dataset(
+            raw_datasets[data_args.eval_split_name],
+            data_args.max_eval_samples,
+            processor,
+        )
 
     if not training_args.do_train and not training_args.do_eval:
         logger.info("There is nothing to do. Please pass `do_train` and/or `do_eval`.")

@@ -4,7 +4,10 @@ import torch
 
 from multimodalhugs.models.sign_clip.configuration_sign_clip import SignCLIPConfig
 from multimodalhugs.models.sign_clip.modeling_sign_clip import SignCLIPModel
-from multimodalhugs.tasks.contrastive.config_classes import ContrastiveModelArguments
+from multimodalhugs.tasks.contrastive.config_classes import (
+    ContrastiveDataArguments,
+    ContrastiveModelArguments,
+)
 from multimodalhugs.tasks.contrastive.contrastive_training import _load_config, _load_model
 
 
@@ -19,6 +22,11 @@ def test_runtime_override_disables_distributed_negatives(tmp_path):
     )
 
     assert config.use_distributed_negatives is False
+
+
+def test_eval_split_defaults_to_validation_and_accepts_test():
+    assert ContrastiveDataArguments().eval_split_name == "validation"
+    assert ContrastiveDataArguments(eval_split_name="test").eval_split_name == "test"
 
 
 def test_runtime_override_sets_siglip_loss(tmp_path):
