@@ -84,6 +84,10 @@ class ContrastiveDataArguments:
         default="validation",
         metadata={"help": "Dataset split used by loss and retrieval evaluation."},
     )
+    max_eval_sign_frames: Optional[int] = field(
+        default=None,
+        metadata={"help": "Optional frame limit used to exclude overlong evaluation samples."},
+    )
     train_ordering_strategy: str = field(
         default="default",
         metadata={"help": "Training-set ordering strategy. Supported values: `default`, `fairseq_round_robin`."},

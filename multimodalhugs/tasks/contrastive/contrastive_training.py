@@ -258,6 +258,7 @@ def _append_experiment_record(
         "processor_name_or_path": processor_args.processor_name_or_path,
         "dataset_dir": data_args.dataset_dir,
         "eval_split_name": data_args.eval_split_name,
+        "max_eval_sign_frames": data_args.max_eval_sign_frames,
         "train_ordering_strategy": data_args.train_ordering_strategy,
         "run_retrieval_eval": training_args.run_retrieval_eval,
         "report_to": _to_builtin(training_args.report_to),
@@ -374,6 +375,30 @@ def _prepare_dataset(split_dataset, max_samples: Optional[int], processor: SignC
     return dataset
 
 
+def _filter_eval_dataset_by_sign_frames(split_dataset, max_frames, processor):
+    if max_frames is None:
+        return split_dataset
+
+    original_size = len(split_dataset)
+
+    def is_within_limit(sample):
+        sign_inputs = processor._signal_to_tensor(
+            sample["signal"],
+            sample.get("signal_start") or 0,
+            sample.get("signal_end") or 0,
+        )
+        return sign_inputs.size(0) <= max_frames
+
+    filtered_dataset = split_dataset.filter(is_within_limit)
+    logger.info(
+        "Filtered evaluation samples above %s sign frames: %s -> %s.",
+        max_frames,
+        original_size,
+        len(filtered_dataset),
+    )
+    return filtered_dataset
+
+
 def _run_retrieval_eval(
     model: SignCLIPModel,
     eval_dataset,
@@ -434,15 +459,6 @@ def main():
 
     processor = _load_processor(processor_args)
     config = _load_config(model_args)
-    if (
-        processor.max_sign_frames is None
-        or processor.max_sign_frames > config.sign_max_position_embeddings
-    ):
-        processor.max_sign_frames = config.sign_max_position_embeddings
-        logger.info(
-            "Capping sign inputs at %s frames to match model position embeddings.",
-            processor.max_sign_frames,
-        )
     model = _load_model(model_args, config)
 
     train_dataset = None
@@ -458,8 +474,13 @@ def main():
             raise ValueError(
                 f"--do_eval requires the requested `{data_args.eval_split_name}` dataset split"
             )
-        eval_dataset = _prepare_dataset(
+        filtered_eval_dataset = _filter_eval_dataset_by_sign_frames(
             raw_datasets[data_args.eval_split_name],
+            data_args.max_eval_sign_frames,
+            processor,
+        )
+        eval_dataset = _prepare_dataset(
+            filtered_eval_dataset,
             data_args.max_eval_samples,
             processor,
         )

@@ -1,6 +1,7 @@
 import math
 
 import torch
+from datasets import Dataset
 
 from multimodalhugs.models.sign_clip.configuration_sign_clip import SignCLIPConfig
 from multimodalhugs.models.sign_clip.modeling_sign_clip import SignCLIPModel
@@ -8,7 +9,11 @@ from multimodalhugs.tasks.contrastive.config_classes import (
     ContrastiveDataArguments,
     ContrastiveModelArguments,
 )
-from multimodalhugs.tasks.contrastive.contrastive_training import _load_config, _load_model
+from multimodalhugs.tasks.contrastive.contrastive_training import (
+    _filter_eval_dataset_by_sign_frames,
+    _load_config,
+    _load_model,
+)
 
 
 def test_runtime_override_disables_distributed_negatives(tmp_path):
@@ -26,7 +31,28 @@ def test_runtime_override_disables_distributed_negatives(tmp_path):
 
 def test_eval_split_defaults_to_validation_and_accepts_test():
     assert ContrastiveDataArguments().eval_split_name == "validation"
-    assert ContrastiveDataArguments(eval_split_name="test").eval_split_name == "test"
+    test_args = ContrastiveDataArguments(eval_split_name="test", max_eval_sign_frames=126)
+    assert test_args.eval_split_name == "test"
+    assert test_args.max_eval_sign_frames == 126
+
+
+def test_eval_frame_filter_excludes_overlong_samples():
+    dataset = Dataset.from_dict(
+        {
+            "signal": [[[0.0]] * 4, [[0.0]] * 6],
+            "signal_start": [0, 0],
+            "signal_end": [0, 0],
+        }
+    )
+
+    class TensorProcessor:
+        @staticmethod
+        def _signal_to_tensor(signal, signal_start, signal_end):
+            return torch.tensor(signal)
+
+    filtered = _filter_eval_dataset_by_sign_frames(dataset, 4, TensorProcessor())
+
+    assert len(filtered) == 1
 
 
 def test_runtime_override_sets_siglip_loss(tmp_path):
