@@ -46,6 +46,16 @@ class ContrastiveModelArguments:
         default=None,
         metadata={"help": "Optional runtime override for SigLIP-style learnable logit bias initialization."},
     )
+    logit_scale_init_value: Optional[float] = field(
+        default=None,
+        metadata={"help": "Optional runtime override for the learnable log-temperature initialization."},
+    )
+    siglip_distributed_implementation: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Distributed SigLIP loss implementation. Supported values: `all_gather`, `ring`."
+        },
+    )
 
 
 @dataclass

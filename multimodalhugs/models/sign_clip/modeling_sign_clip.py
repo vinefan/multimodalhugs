@@ -6,6 +6,7 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 from transformers import AutoConfig, AutoModel, PreTrainedModel
 from transformers.modeling_outputs import ModelOutput
 
@@ -106,6 +107,36 @@ class _AllGatherWithGrad(torch.autograd.Function):
         gathered_grads = torch.stack([grad.contiguous() for grad in grad_outputs], dim=0)
         dist.all_reduce(gathered_grads, op=dist.ReduceOp.SUM)
         return gathered_grads[ctx.rank]
+
+
+class _NeighbourExchangeWithGrad(torch.autograd.Function):
+    """Send one feature chunk around a ring and route its gradient back."""
+
+    @staticmethod
+    def _exchange(tensor: torch.Tensor, send_rank: int, recv_rank: int) -> torch.Tensor:
+        received = torch.empty_like(tensor)
+        operations = [
+            dist.P2POp(dist.isend, tensor.contiguous(), send_rank),
+            dist.P2POp(dist.irecv, received, recv_rank),
+        ]
+        for request in dist.batch_isend_irecv(operations):
+            request.wait()
+        return received
+
+    @staticmethod
+    def forward(ctx, tensor: torch.Tensor, send_rank: int, recv_rank: int):
+        ctx.send_rank = send_rank
+        ctx.recv_rank = recv_rank
+        return _NeighbourExchangeWithGrad._exchange(tensor, send_rank, recv_rank)
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        grad_input = _NeighbourExchangeWithGrad._exchange(
+            grad_output,
+            send_rank=ctx.recv_rank,
+            recv_rank=ctx.send_rank,
+        )
+        return grad_input, None, None
 
 
 @register_model("sign_clip")
@@ -402,6 +433,58 @@ class SignCLIPModel(PreTrainedModel):
         labels = torch.arange(local_batch_size, device=sign_features.device) + label_offset
         return logits_per_sign, logits_per_text, labels
 
+    def _compute_siglip_logits(
+        self,
+        sign_features: torch.Tensor,
+        text_features: torch.Tensor,
+    ) -> torch.Tensor:
+        logit_scale = self.logit_scale.exp().clamp(max=self.config.max_logit_scale)
+        return logit_scale * torch.matmul(sign_features, text_features.transpose(0, 1)) + self.logit_bias
+
+    def _compute_all_negative_siglip_block_loss(
+        self,
+        sign_features: torch.Tensor,
+        text_features: torch.Tensor,
+    ) -> torch.Tensor:
+        logits = self._compute_siglip_logits(sign_features, text_features)
+        return -F.logsigmoid(-logits).sum() / sign_features.size(0)
+
+    def _compute_siglip_ring_loss(
+        self,
+        sign_features: torch.Tensor,
+        text_features: torch.Tensor,
+    ):
+        """Compute the paper's chunked loss by circulating text features."""
+        if not self.config.use_projection and self.config.projection_l2_norm:
+            sign_features = F.normalize(sign_features, p=2, dim=-1)
+            text_features = F.normalize(text_features, p=2, dim=-1)
+
+        local_logits = self._compute_siglip_logits(sign_features, text_features)
+        loss = self._compute_siglip_loss(local_logits)
+
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        send_rank = (rank + 1) % world_size
+        recv_rank = (rank - 1) % world_size
+        current_text_features = text_features
+
+        for _ in range(1, world_size):
+            current_text_features = _NeighbourExchangeWithGrad.apply(
+                current_text_features,
+                send_rank,
+                recv_rank,
+            )
+            # Recompute remote blocks during backward so only one b x b
+            # similarity block is retained at a time.
+            loss = loss + checkpoint(
+                self._compute_all_negative_siglip_block_loss,
+                sign_features,
+                current_text_features,
+                use_reentrant=False,
+            )
+
+        return loss, local_logits, local_logits.transpose(0, 1)
+
     @staticmethod
     def _compute_contrastive_loss(
         logits_per_sign: torch.Tensor,
@@ -468,14 +551,33 @@ class SignCLIPModel(PreTrainedModel):
         )
 
         labels = None
+        loss = None
         if self.config.use_distributed_negatives and self._distributed_training_is_active():
-            logits_per_sign, logits_per_text, labels = self._compute_distributed_logits_and_labels(
-                sign_embeds,
-                text_embeds,
-            )
+            if (
+                self.config.contrastive_loss_type == "siglip"
+                and self.config.siglip_distributed_implementation == "ring"
+            ):
+                if return_loss:
+                    loss, logits_per_sign, logits_per_text = self._compute_siglip_ring_loss(
+                        sign_embeds,
+                        text_embeds,
+                    )
+                else:
+                    logits_per_sign, logits_per_text = self._compute_logits(sign_embeds, text_embeds)
+            elif self.config.siglip_distributed_implementation in {"all_gather", "ring"}:
+                logits_per_sign, logits_per_text, labels = self._compute_distributed_logits_and_labels(
+                    sign_embeds,
+                    text_embeds,
+                )
+            else:
+                raise ValueError(
+                    "`siglip_distributed_implementation` must be either 'all_gather' or 'ring', "
+                    f"got {self.config.siglip_distributed_implementation!r}."
+                )
         else:
             logits_per_sign, logits_per_text = self._compute_logits(sign_embeds, text_embeds)
-        loss = self._compute_loss(logits_per_sign, logits_per_text, labels) if return_loss else None
+        if return_loss and loss is None:
+            loss = self._compute_loss(logits_per_sign, logits_per_text, labels)
 
         return_dict = return_dict if return_dict is not None else self.config.return_dict
         if not return_dict:

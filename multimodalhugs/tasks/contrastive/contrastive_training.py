@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import datasets
+import torch
 import transformers
 from datasets import load_from_disk
 from torch.utils.data import DataLoader, SequentialSampler
@@ -53,6 +54,24 @@ class ContrastiveTrainer(Trainer):
     def __init__(self, *args, train_ordering_strategy: str = "default", **kwargs):
         super().__init__(*args, **kwargs)
         self.train_ordering_strategy = train_ordering_strategy
+
+    def log(self, logs, *args, **kwargs):
+        model = self.model.module if hasattr(self.model, "module") else self.model
+        if hasattr(model, "logit_scale"):
+            logit_scale = model.logit_scale.detach().float()
+            logs.setdefault("model/logit_scale_param", logit_scale.item())
+            logs.setdefault(
+                "model/logit_scale",
+                torch.exp(logit_scale).clamp(max=model.config.max_logit_scale).item(),
+            )
+        if hasattr(model, "logit_bias"):
+            logs.setdefault("model/logit_bias", model.logit_bias.detach().float().item())
+        try:
+            return super().log(logs, *args, **kwargs)
+        except TypeError:
+            if args or kwargs:
+                return super().log(logs)
+            raise
 
     def _get_train_sampler(self):
         if self.train_ordering_strategy == "fairseq_round_robin":
@@ -234,6 +253,8 @@ def _append_experiment_record(
         "use_distributed_negatives": model_args.use_distributed_negatives,
         "contrastive_loss_type": model_args.contrastive_loss_type,
         "logit_bias_init_value": model_args.logit_bias_init_value,
+        "logit_scale_init_value": model_args.logit_scale_init_value,
+        "siglip_distributed_implementation": model_args.siglip_distributed_implementation,
         "processor_name_or_path": processor_args.processor_name_or_path,
         "dataset_dir": data_args.dataset_dir,
         "train_ordering_strategy": data_args.train_ordering_strategy,
@@ -301,6 +322,18 @@ def _load_config(model_args: ContrastiveModelArguments) -> SignCLIPConfig:
             "Overriding logit_bias_init_value=%s",
             config.logit_bias_init_value,
         )
+    if model_args.logit_scale_init_value is not None:
+        config.logit_scale_init_value = model_args.logit_scale_init_value
+        logger.info(
+            "Overriding logit_scale_init_value=%s",
+            config.logit_scale_init_value,
+        )
+    if model_args.siglip_distributed_implementation is not None:
+        config.siglip_distributed_implementation = model_args.siglip_distributed_implementation
+        logger.info(
+            "Overriding siglip_distributed_implementation=%s",
+            config.siglip_distributed_implementation,
+        )
     return config
 
 
@@ -312,7 +345,7 @@ def _load_processor(processor_args: ContrastiveProcessorArguments) -> SignCLIPPr
 
 def _load_model(model_args: ContrastiveModelArguments, config: SignCLIPConfig) -> SignCLIPModel:
     if model_args.model_name_or_path:
-        return SignCLIPModel.from_pretrained(
+        model = SignCLIPModel.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             cache_dir=model_args.cache_dir,
@@ -320,7 +353,17 @@ def _load_model(model_args: ContrastiveModelArguments, config: SignCLIPConfig) -
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )
-    return SignCLIPModel(config)
+    else:
+        model = SignCLIPModel(config)
+
+    # A setup checkpoint already contains these scalar parameters. Runtime
+    # overrides must therefore update the tensors as well as the config.
+    with torch.no_grad():
+        if model_args.logit_scale_init_value is not None:
+            model.logit_scale.fill_(model_args.logit_scale_init_value)
+        if model_args.logit_bias_init_value is not None:
+            model.logit_bias.fill_(model_args.logit_bias_init_value)
+    return model
 
 
 def _prepare_dataset(split_dataset, max_samples: Optional[int], processor: SignCLIPProcessor):

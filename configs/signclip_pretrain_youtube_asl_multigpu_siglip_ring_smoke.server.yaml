@@ -1,11 +1,12 @@
-# Experimental baseline: sigmoid loss with all-gathered global negatives.
+# Paper-aligned SigLIP smoke: ring-exchanged text chunks and pairwise sigmoid loss.
 
 model:
   model_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/model"
   use_distributed_negatives: true
   contrastive_loss_type: "siglip"
+  siglip_distributed_implementation: "ring"
+  logit_scale_init_value: 2.302585093  # log(10), as in SigLIP
   logit_bias_init_value: -10.0
-  siglip_distributed_implementation: "all_gather"
 
 processor:
   processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_asl_pretrain_v1/setup/sign_clip_processor"
@@ -15,10 +16,10 @@ data:
   train_ordering_strategy: "default"
 
 training:
-  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_multigpu_siglip_smoke"
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_asl_pretrain_multigpu_siglip_ring_smoke"
   overwrite_output_dir: true
   remove_unused_columns: false
-  run_name: "signclip-pretrain-youtube-asl-multigpu-siglip-smoke"
+  run_name: "signclip-pretrain-youtube-asl-multigpu-siglip-ring-smoke"
 
   do_train: true
   do_eval: true
@@ -28,10 +29,12 @@ training:
   per_device_eval_batch_size: 64
   gradient_accumulation_steps: 1
   dataloader_drop_last: true
+  ddp_find_unused_parameters: true
 
   learning_rate: 5.0e-5
   lr_scheduler_type: "linear"
   weight_decay: 0.0
+  adam_beta2: 0.95
   max_steps: 300
   warmup_steps: 10
 
@@ -47,4 +50,4 @@ training:
   report_to:
     - wandb
   wandb_project: "multimodalhugs-signclip-youtube-asl"
-  wandb_tags: "signclip,youtube-asl,pretrain,smoke,multigpu,siglip,global-negatives,direction-2"
+  wandb_tags: "signclip,youtube-asl,pretrain,smoke,multigpu,siglip,ring-chunked,paper-recipe"

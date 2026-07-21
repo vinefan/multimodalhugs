@@ -1,0 +1,50 @@
+# FingerCLIP convergence and systems comparison: CLIP softmax with global negatives.
+
+model:
+  model_name_or_path: "/home/xf/local/scratch/signclip/setup/sign_clip_setup_hand_fairseqish/setup/model"
+  use_distributed_negatives: true
+  contrastive_loss_type: "clip"
+
+processor:
+  processor_name_or_path: "/home/xf/local/scratch/signclip/setup/sign_clip_setup_hand_fairseqish/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/xf/local/scratch/signclip/setup/sign_clip_setup_hand_fairseqish/setup/datasets/default"
+  train_ordering_strategy: "default"
+
+training:
+  output_dir: "/home/xf/local/scratch/signclip/runs/fingerclip_multigpu_softmax_global_bs16_25ep"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "fingerclip-multigpu-softmax-global-bs16-25ep"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 1
+  dataloader_drop_last: true
+  ddp_find_unused_parameters: true
+
+  learning_rate: 5.0e-5
+  lr_scheduler_type: "linear"
+  weight_decay: 0.0
+  adam_beta2: 0.95
+  num_train_epochs: 25
+  warmup_steps: 0
+
+  logging_strategy: "steps"
+  logging_steps: 10
+  eval_strategy: "epoch"
+  save_strategy: "no"
+  skip_memory_metrics: false
+
+  dataloader_num_workers: 0
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip"
+  wandb_tags: "fingerclip,hand,fairseqish,multigpu,bs16,25ep,softmax,all-gather,global-negatives,memory-throughput"

@@ -39,6 +39,7 @@ class SignCLIPConfig(PretrainedConfig):
         logit_bias_init_value: float = -10.0,
         max_logit_scale: float = 100.0,
         use_distributed_negatives: bool = True,
+        siglip_distributed_implementation: str = "all_gather",
         freeze_sign_encoder: bool = False,
         freeze_text_encoder: bool = False,
         freeze_sign_projection: bool = False,
@@ -72,6 +73,7 @@ class SignCLIPConfig(PretrainedConfig):
         self.logit_bias_init_value = logit_bias_init_value
         self.max_logit_scale = max_logit_scale
         self.use_distributed_negatives = use_distributed_negatives
+        self.siglip_distributed_implementation = siglip_distributed_implementation
         self.freeze_sign_encoder = freeze_sign_encoder
         self.freeze_text_encoder = freeze_text_encoder
         self.freeze_sign_projection = freeze_sign_projection
