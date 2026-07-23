@@ -9,15 +9,15 @@ data:
   max_frames: 256
 
 processor:
-  tokenizer_path: "bert-base-cased"
-  text_tokenizer_path: "bert-base-cased"
+  tokenizer_path: "/mnt/sda/xf/models/bert-base-cased"
+  text_tokenizer_path: "/mnt/sda/xf/models/bert-base-cased"
   reduce_holistic_poses: true
   skip_frames_stride: null
   pose_components: null
 
 model:
   type: "sign_clip"
-  pretrained_text_encoder: "bert-base-cased"
+  pretrained_text_encoder: "/mnt/sda/xf/models/bert-base-cased"
   text_encoder_type: "bert"
   cls_token_id: 101
   sep_token_id: 102
@@ -51,7 +51,7 @@ model:
 
 setup:
   output_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup"
-  do_dataset: true
+  do_dataset: false
   do_processor: true
   do_model: true
   update_config: false

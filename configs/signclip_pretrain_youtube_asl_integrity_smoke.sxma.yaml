@@ -3,15 +3,15 @@
 # batch size 128 without assuming H100-sized device memory.
 
 model:
-  model_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/setup/model"
+  model_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/model"
   use_distributed_negatives: false
-  contrastive_loss_type: "softmax"
+  contrastive_loss_type: "clip"
 
 processor:
-  processor_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/setup/sign_clip_processor"
+  processor_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/sign_clip_processor"
 
 data:
-  dataset_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/setup/datasets/default"
+  dataset_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/datasets/default"
   train_ordering_strategy: "default"
 
 training:
