@@ -1,10 +1,10 @@
-# Single-GPU sxma integrity smoke setup using one segment per distinct pose file.
+# Single-GPU sxma smoke setup using the filtered grouped 99:1 metadata.
 
 data:
   dataset_type: "pose2text"
-  train_metadata_file: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/metadata/train.tsv"
-  validation_metadata_file: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/metadata/validation.tsv"
-  test_metadata_file: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/metadata/test.tsv"
+  train_metadata_file: "/mnt/sda/xf/datasets/youtube_asl/metadata_signclip_clean_v2_filtered_99_1/train.tsv"
+  validation_metadata_file: "/mnt/sda/xf/datasets/youtube_asl/metadata_signclip_clean_v2_filtered_99_1/test.tsv"
+  test_metadata_file: null
   shuffle: true
   max_frames: 256
 
@@ -50,7 +50,7 @@ model:
   return_dict: true
 
 setup:
-  output_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/setup"
+  output_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup"
   do_dataset: true
   do_processor: true
   do_model: true
