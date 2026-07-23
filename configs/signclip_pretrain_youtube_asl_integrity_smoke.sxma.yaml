@@ -1,0 +1,49 @@
+# Single-V100 data-integrity smoke for the migrated YouTube-ASL pose files.
+# A physical batch of 32 with four-step accumulation preserves effective
+# batch size 128 without assuming H100-sized device memory.
+
+model:
+  model_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/setup/setup/model"
+  use_distributed_negatives: false
+  contrastive_loss_type: "softmax"
+
+processor:
+  processor_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/setup/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/setup/setup/datasets/default"
+  train_ordering_strategy: "default"
+
+training:
+  output_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_integrity_smoke/run"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-youtube-asl-integrity-smoke-sxma"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 32
+  gradient_accumulation_steps: 4
+
+  learning_rate: 5.0e-5
+  lr_scheduler_type: "linear"
+  weight_decay: 0.0
+  num_train_epochs: 1
+  warmup_steps: 1
+
+  logging_strategy: "steps"
+  logging_steps: 1
+  logging_nan_inf_filter: false
+  eval_strategy: "epoch"
+  save_strategy: "no"
+
+  dataloader_num_workers: 2
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-asl"
+  wandb_tags: "signclip,youtube-asl,integrity-smoke,sxma,single-gpu,softmax,distinct-pose-files"
