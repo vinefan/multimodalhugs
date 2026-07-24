@@ -11,7 +11,7 @@ processor:
   processor_name_or_path: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/sign_clip_processor"
 
 data:
-  dataset_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/datasets/default"
+  dataset_dir: "/mnt/sda/xf/experiments/signclip/youtube_asl_filtered_99_1_smoke/setup/datasets/default_finite_v1"
   train_ordering_strategy: "default"
 
 training:
