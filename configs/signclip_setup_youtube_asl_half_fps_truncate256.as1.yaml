@@ -4,9 +4,9 @@
 
 data:
   dataset_type: "pose2text"
-  train_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_10ep/metadata/train.tsv"
-  validation_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_10ep/metadata/validation.tsv"
-  test_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_10ep/metadata/test.tsv"
+  train_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/metadata/train.tsv"
+  validation_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/metadata/validation.tsv"
+  test_metadata_file: "/home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/metadata/test.tsv"
   shuffle: true
   max_frames: null
 
