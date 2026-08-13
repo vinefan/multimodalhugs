@@ -47,3 +47,20 @@ def test_sign_clip_processor_outputs_expected_fields(tmp_path):
     decoded = tokenizer.batch_decode(outputs["input_ids"], skip_special_tokens=True)
     assert decoded[0] == "<en> <ase> hello world"
     assert decoded[1] == "<en> <ase> hello"
+
+
+def test_sign_clip_processor_downsamples_before_truncating(tmp_path):
+    vocab_path = tmp_path / "vocab.txt"
+    vocab_path.write_text("\n".join(["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"]))
+    tokenizer = BertTokenizerFast(vocab_file=str(vocab_path))
+    processor = SignCLIPProcessor(
+        tokenizer=tokenizer,
+        reduce_holistic_poses=True,
+        skip_frames_stride=2,
+        max_frames=3,
+    )
+    signal = torch.arange(7, dtype=torch.float32).unsqueeze(-1)
+
+    processed = processor._signal_to_tensor(signal)
+
+    assert processed.squeeze(-1).tolist() == [0.0, 2.0, 4.0]

@@ -1,0 +1,47 @@
+model:
+  model_name_or_path: /home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/setup_youtube_asl/setup/model
+  use_distributed_negatives: false
+  contrastive_loss_type: clip
+
+processor:
+  processor_name_or_path: /home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/setup_youtube_asl/setup/sign_clip_processor
+
+data:
+  dataset_dir: /home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/setup_youtube_asl/setup/datasets/default
+  eval_split_name: validation
+  max_eval_sign_frames: null
+  train_ordering_strategy: default
+
+training:
+  output_dir: /home/xf/data/signclip_pretrain/as1_softmax_b32_half_fps_truncate256_10ep/runs/youtube_asl_softmax_b32_half_fps_truncate256_10ep_no_sdp
+  overwrite_output_dir: false
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+  num_train_epochs: 10
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 1
+  learning_rate: 5.0e-5
+  lr_scheduler_type: linear
+  weight_decay: 0.0
+  warmup_steps: 4000
+  logging_strategy: steps
+  logging_steps: 400
+  eval_strategy: steps
+  eval_steps: 4000
+  save_strategy: steps
+  save_steps: 4000
+  save_total_limit: 1
+  load_best_model_at_end: true
+  metric_for_best_model: eval_loss
+  greater_is_better: false
+  fp16: true
+  logging_nan_inf_filter: false
+  dataloader_num_workers: 4
+  seed: 42
+  remove_unused_columns: false
+  report_to: [wandb]
+  run_name: signclip-pretrain-youtube-asl-as1-softmax-b32-half-fps-truncate256-10ep-no-sdp
+  wandb_project: multimodalhugs-signclip-youtube-asl
+  wandb_tags: signclip,youtube-asl,softmax,batch32,half-fps,truncate256,10ep,as1
