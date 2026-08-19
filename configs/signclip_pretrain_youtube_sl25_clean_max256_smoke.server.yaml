@@ -1,0 +1,51 @@
+# Small YouTube-SL-25 SignCLIP smoke run.
+# Purpose: verify clean TSV splits, pose loading, processor, model, and W&B logging.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/model"
+  use_distributed_negatives: false
+  contrastive_loss_type: "clip"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/datasets/default"
+  train_ordering_strategy: "default"
+  max_train_samples: 4096
+  max_eval_samples: 1024
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_sl25_clean_max256_smoke_v1"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-pretrain-youtube-sl25-clean-max256-smoke"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+  retrieval_eval_direction: "v2t"
+
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 32
+  gradient_accumulation_steps: 1
+
+  learning_rate: 5.0e-5
+  lr_scheduler_type: "linear"
+  weight_decay: 0.0
+  max_steps: 50
+  warmup_steps: 5
+
+  logging_strategy: "steps"
+  logging_steps: 5
+  eval_strategy: "steps"
+  eval_steps: 25
+  save_strategy: "no"
+
+  dataloader_num_workers: 2
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-sl25"
+  wandb_tags: "signclip,youtube-sl25,clean-max256,smoke,softmax"
