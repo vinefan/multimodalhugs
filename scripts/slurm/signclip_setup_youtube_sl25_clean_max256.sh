@@ -12,6 +12,7 @@ set -euo pipefail
 REPO_PATH="${REPO_PATH:-/home/faxu/multimodalhugs}"
 CONFIG_PATH="${CONFIG_PATH:-/home/faxu/multimodalhugs/configs/signclip_setup_youtube_sl25_clean_max256.server.yaml}"
 LOGS_ROOT="${LOGS_ROOT:-/home/faxu/scratch/signclip/logs}"
+PIXI_BIN="${PIXI_BIN:-/home/faxu/.pixi/bin/pixi}"
 
 mkdir -p "${LOGS_ROOT}"
 
@@ -22,7 +23,7 @@ echo "[setup-sl25] repo=${REPO_PATH}"
 echo "[setup-sl25] config=${CONFIG_PATH}"
 echo "[setup-sl25] start=$(date -Iseconds)"
 
-pixi run python -m multimodalhugs.multimodalhugs_cli.training_setup \
+"${PIXI_BIN}" run python -m multimodalhugs.multimodalhugs_cli.training_setup \
   --config_path "${CONFIG_PATH}" \
   --modality sign_clip
 
