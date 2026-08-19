@@ -1,0 +1,55 @@
+# YouTube-SL-25 clean max256 single-GPU softmax SignCLIP pretraining.
+# Baseline aligned with the YouTube-ASL single-GPU setup, using BERT default
+# text truncation length and unregistered language tags in encoder_prompt.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/model"
+  use_distributed_negatives: false
+  contrastive_loss_type: "clip"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/datasets/default"
+  train_ordering_strategy: "default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/runs/youtube_sl25_clean_max256_softmax_b128_130k"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-pretrain-youtube-sl25-clean-max256-softmax-b128-130k"
+
+  do_train: true
+  do_eval: true
+  run_retrieval_eval: false
+  retrieval_eval_direction: "v2t"
+
+  per_device_train_batch_size: 128
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 1
+
+  learning_rate: 5.0e-5
+  lr_scheduler_type: "linear"
+  weight_decay: 0.0
+  max_steps: 130000
+  warmup_steps: 1000
+
+  logging_strategy: "steps"
+  logging_steps: 100
+  eval_strategy: "steps"
+  eval_steps: 2000
+  save_strategy: "steps"
+  save_steps: 2000
+  save_total_limit: 2
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-youtube-sl25"
+  wandb_tags: "signclip,youtube-sl25,clean-max256,softmax,b128,130k,single-gpu"
