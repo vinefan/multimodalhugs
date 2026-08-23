@@ -1,0 +1,32 @@
+# Base config for PopSign zero-shot retrieval evaluation using the current
+# best checkpoint from the YouTube-SL-25 b128 softmax run. The Slurm script
+# overrides model_name_or_path with the checkpoint detected from trainer_state.
+
+model:
+  model_name_or_path: "/home/faxu/scratch/signclip/runs/youtube_sl25_clean_max256_softmax_b128_130k/train/checkpoint-0"
+
+processor:
+  processor_name_or_path: "/home/faxu/scratch/signclip/setup/youtube_sl25_clean_max256_v1/setup/sign_clip_processor"
+
+data:
+  dataset_dir: "/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default"
+
+training:
+  output_dir: "/home/faxu/scratch/signclip/evals/popsign_zeroshot_youtube_sl25_current_best"
+  overwrite_output_dir: true
+  remove_unused_columns: false
+  run_name: "signclip-eval-popsign-zeroshot-youtube-sl25-current-best"
+
+  do_train: false
+  do_eval: true
+  run_retrieval_eval: true
+  retrieval_eval_direction: "v2t"
+
+  per_device_eval_batch_size: 128
+  dataloader_num_workers: 4
+  seed: 42
+
+  report_to:
+    - wandb
+  wandb_project: "multimodalhugs-signclip-popsign"
+  wandb_tags: "signclip,popsign,eval,zeroshot,youtube-sl25,current-best,v2t"
