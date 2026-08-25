@@ -10,7 +10,9 @@
 
 set -euo pipefail
 
-REPO_PATH="${REPO_PATH:-/home/faxu/multimodalhugs}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_PATH="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+REPO_PATH="${REPO_PATH:-${DEFAULT_REPO_PATH}}"
 PORTABLE_ROOT="${PORTABLE_ROOT:-/home/faxu/signclip_eval_models/signclip_global512_step4000_portable}"
 DATASET_DIR="${DATASET_DIR:-/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default}"
 OUTPUT_DIR="${OUTPUT_DIR:-/home/faxu/scratch/signclip/evals/popsign_knn10_global512_step4000}"
