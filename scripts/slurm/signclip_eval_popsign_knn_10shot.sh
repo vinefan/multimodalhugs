@@ -11,7 +11,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_REPO_PATH="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+# Slurm executes a copied script from /var/spool. SLURM_SUBMIT_DIR retains the
+# directory from which sbatch was invoked; the fallback supports direct runs.
+DEFAULT_REPO_PATH="${SLURM_SUBMIT_DIR:-$(cd -- "${SCRIPT_DIR}/../.." && pwd)}"
 REPO_PATH="${REPO_PATH:-${DEFAULT_REPO_PATH}}"
 PORTABLE_ROOT="${PORTABLE_ROOT:-/home/faxu/signclip_eval_models/signclip_global512_step4000_portable}"
 DATASET_DIR="${DATASET_DIR:-/home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default}"
