@@ -3,7 +3,7 @@
 #SBATCH --partition=lowprio
 #SBATCH --gres=gpu:L4:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=48G
 #SBATCH --time=08:00:00
 #SBATCH --output=/home/faxu/scratch/signclip/logs/%x-%j.out
 #SBATCH --error=/home/faxu/scratch/signclip/logs/%x-%j.err
