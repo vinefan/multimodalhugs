@@ -12,3 +12,4 @@ check-signclip-imports = "python -c \"from multimodalhugs.processors.sign_clip_p
 [dependencies]
 python = "3.10.*"
 pip = ">=26.0.1,<27"
+scikit-learn = ">=1.5,<2"
