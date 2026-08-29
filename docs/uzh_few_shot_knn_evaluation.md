@@ -34,7 +34,7 @@ The prepared PopSign dataset is expected at:
 /home/faxu/scratch/signclip/setup/popsign_pretrain_v1/setup/datasets/default
 ```
 
-After checking out `codex/eval-signclip-knn-10shot`, inspect the paths without starting a job:
+After updating the main MultimodalHugs checkout, inspect the paths without starting a job:
 
 ```bash
 for p in \
