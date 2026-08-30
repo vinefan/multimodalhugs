@@ -17,9 +17,11 @@ OUTPUT_DIR="${OUTPUT_DIR:-/home/faxu/scratch/signclip/evals/popsign_knn10_global
 
 mkdir -p "${OUTPUT_DIR}" /home/faxu/scratch/signclip/logs
 cd "${REPO_PATH}"
+export PYTHONPATH="${REPO_PATH}"
 
 echo "[knn10] host=$(hostname)"
 echo "[knn10] repo=${REPO_PATH}"
+echo "[knn10] PYTHONPATH=${PYTHONPATH}"
 echo "[knn10] dataset=${DATASET_DIR}"
 echo "[knn10] models=${PORTABLE_ROOT}"
 echo "[knn10] output=${OUTPUT_DIR}"
