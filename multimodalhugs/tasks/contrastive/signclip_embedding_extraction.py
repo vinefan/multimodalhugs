@@ -58,6 +58,24 @@ def _truncate_sign_batch_to_model_limit(
     return truncated, True
 
 
+def _validate_sign_feature_dimension(
+    model: SignCLIPModel,
+    batch: Mapping[str, torch.Tensor],
+) -> None:
+    """Fail clearly when pose landmark selection differs from model training."""
+    expected_dim = getattr(model.config, "sign_input_dim", None)
+    if expected_dim is None:
+        return
+
+    actual_dim = batch["sign_inputs"].shape[-1]
+    if actual_dim != int(expected_dim):
+        raise ValueError(
+            "Sign pose feature dimension does not match the trained model: "
+            f"expected {expected_dim} features per frame, received {actual_dim}. "
+            "Check reduce_holistic_poses and pose_components in the saved processor."
+        )
+
+
 def extract_sign_embeddings(
     model: SignCLIPModel,
     processor: SignCLIPProcessor,
@@ -83,6 +101,7 @@ def extract_sign_embeddings(
     with torch.inference_mode():
         for batch in tqdm(dataloader, desc=description, leave=False):
             longest_batch = max(longest_batch, batch["sign_inputs"].shape[1])
+            _validate_sign_feature_dimension(model, batch)
             batch, was_truncated = _truncate_sign_batch_to_model_limit(model, batch)
             truncated_batches += int(was_truncated)
             features, _ = model.get_sign_features(

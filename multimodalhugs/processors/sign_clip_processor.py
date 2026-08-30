@@ -19,6 +19,12 @@ class SignCLIPProcessor(MultimodalSequence2SequenceProcessor):
     attributes = ["tokenizer"]
     model_input_names = ["sign_inputs", "sign_attention_mask", "input_ids", "attention_mask"]
     tokenizer_class = "AutoTokenizer"
+    valid_kwargs = MultimodalSequence2SequenceProcessor.valid_kwargs + [
+        "reduce_holistic_poses",
+        "skip_frames_stride",
+        "max_frames",
+        "pose_components",
+    ]
 
     def __init__(
         self,

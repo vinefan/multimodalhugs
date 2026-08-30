@@ -17,9 +17,11 @@ OUTPUT_DIR="${OUTPUT_DIR:-/home/faxu/scratch/signclip/evals/popsign_linear_globa
 
 mkdir -p "${OUTPUT_DIR}" /home/faxu/scratch/signclip/logs
 cd "${REPO_PATH}"
+export PYTHONPATH="${REPO_PATH}"
 
 echo "[linear] host=$(hostname)"
 echo "[linear] repo=${REPO_PATH}"
+echo "[linear] PYTHONPATH=${PYTHONPATH}"
 echo "[linear] dataset=${DATASET_DIR}"
 echo "[linear] models=${PORTABLE_ROOT}"
 echo "[linear] output=${OUTPUT_DIR}"

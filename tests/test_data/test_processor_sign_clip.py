@@ -64,3 +64,25 @@ def test_sign_clip_processor_downsamples_before_truncating(tmp_path):
     processed = processor._signal_to_tensor(signal)
 
     assert processed.squeeze(-1).tolist() == [0.0, 2.0, 4.0]
+
+
+def test_sign_clip_processor_round_trip_preserves_pose_settings(tmp_path):
+    vocab_path = tmp_path / "vocab.txt"
+    vocab_path.write_text("\n".join(["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"]))
+    tokenizer = BertTokenizerFast(vocab_file=str(vocab_path))
+    processor = SignCLIPProcessor(
+        tokenizer=tokenizer,
+        reduce_holistic_poses=False,
+        skip_frames_stride=2,
+        max_frames=256,
+        pose_components=["POSE_LANDMARKS", "LEFT_HAND_LANDMARKS"],
+    )
+    save_path = tmp_path / "processor"
+
+    processor.save_pretrained(save_path)
+    restored = SignCLIPProcessor.from_pretrained(save_path)
+
+    assert restored.reduce_holistic_poses is False
+    assert restored.skip_frames_stride == 2
+    assert restored.max_frames == 256
+    assert restored.pose_components == ["POSE_LANDMARKS", "LEFT_HAND_LANDMARKS"]
