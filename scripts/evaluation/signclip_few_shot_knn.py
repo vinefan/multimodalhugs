@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-chunk-size", type=int, default=512)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--overwrite-cache", action="store_true")
+    parser.add_argument("--bad-sample-policy", choices=("error", "skip"), default="error")
     return parser.parse_args()
 
 
@@ -108,17 +109,31 @@ def main() -> None:
             args.num_workers,
             torch.device(args.device),
             args.overwrite_cache,
+            args.bad_sample_policy,
         )
+        valid_support_indices = embeddings["support_embeddings__dataset_indices"]
+        valid_test_indices = embeddings["test_embeddings__dataset_indices"]
+        model_support_labels = [support_labels[int(index)] for index in valid_support_indices]
+        model_test_labels = [test_labels[int(index)] for index in valid_test_indices]
+        unreadable_counts = {
+            "n_unreadable_support": len(support_labels) - len(model_support_labels),
+            "n_unreadable_test": len(test_labels) - len(model_test_labels),
+        }
         for protocol in protocols:
             metrics = evaluate_few_shot_knn(
                 embeddings["support_embeddings"],
-                support_labels,
+                model_support_labels,
                 embeddings["test_embeddings"],
-                test_labels,
+                model_test_labels,
                 neighbor_rule=protocol,
                 query_chunk_size=args.query_chunk_size,
             )
-            results.append({"model": model_name, "protocol": protocol, **metrics})
+            results.append({
+                "model": model_name,
+                "protocol": protocol,
+                **unreadable_counts,
+                **metrics,
+            })
 
     payload = {
         "dataset_dir": str(args.dataset_dir),
@@ -127,6 +142,7 @@ def main() -> None:
         "test_split": args.test_split,
         "shots": args.shots,
         "seed": args.seed,
+        "bad_sample_policy": args.bad_sample_policy,
         "models": {name: str(path) for name, path in args.model},
         "results": results,
     }
@@ -135,7 +151,8 @@ def main() -> None:
 
     result_columns = [
         "model", "protocol", "n_neighbors", "n_support", "n_queries", "n_classes",
-        "n_filtered_queries", "r@1", "r@5", "r@10", "median_r", "mean_r",
+        "n_filtered_queries", "n_unreadable_support", "n_unreadable_test",
+        "r@1", "r@5", "r@10", "median_r", "mean_r",
     ]
     with (args.output_dir / "results.tsv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=result_columns, delimiter="\t")

@@ -36,4 +36,5 @@ pixi run python scripts/evaluation/signclip_few_shot_knn.py \
   --seed 42 \
   --protocol both \
   --batch-size 128 \
-  --num-workers 4
+  --num-workers 4 \
+  --bad-sample-policy skip

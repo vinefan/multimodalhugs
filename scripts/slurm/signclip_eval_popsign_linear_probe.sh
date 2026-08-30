@@ -33,4 +33,5 @@ pixi run python scripts/evaluation/signclip_linear_probe.py \
   --model "ring_sigmoid=${PORTABLE_ROOT}/ring_sigmoid_global512_step4000" \
   --output-dir "${OUTPUT_DIR}" \
   --batch-size 128 \
-  --num-workers 4
+  --num-workers 4 \
+  --bad-sample-policy skip

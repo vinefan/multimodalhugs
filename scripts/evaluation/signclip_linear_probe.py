@@ -48,6 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--overwrite-cache", action="store_true")
+    parser.add_argument("--bad-sample-policy", choices=("error", "skip"), default="error")
     return parser.parse_args()
 
 
@@ -79,15 +80,25 @@ def main() -> None:
             args.num_workers,
             torch.device(args.device),
             args.overwrite_cache,
+            args.bad_sample_policy,
         )
+        valid_train_indices = embeddings["train_embeddings__dataset_indices"]
+        valid_test_indices = embeddings["test_embeddings__dataset_indices"]
+        model_train_labels = [train_labels[int(index)] for index in valid_train_indices]
+        model_test_labels = [test_labels[int(index)] for index in valid_test_indices]
         classifier, metrics = evaluate_linear_probe(
             embeddings["train_embeddings"],
-            train_labels,
+            model_train_labels,
             embeddings["test_embeddings"],
-            test_labels,
+            model_test_labels,
         )
         joblib.dump(classifier, args.output_dir / f"{model_name}_linear_probe.joblib")
-        results.append({"model": model_name, **metrics})
+        results.append({
+            "model": model_name,
+            "n_unreadable_train": len(train_labels) - len(model_train_labels),
+            "n_unreadable_test": len(test_labels) - len(model_test_labels),
+            **metrics,
+        })
 
     payload = {
         "protocol": "scikit-learn LogisticRegression with all default settings",
@@ -96,6 +107,7 @@ def main() -> None:
         "train_split": args.train_split,
         "test_split": args.test_split,
         "label_column": args.label_column,
+        "bad_sample_policy": args.bad_sample_policy,
         "models": {name: str(path) for name, path in args.model},
         "results": results,
     }
@@ -104,6 +116,7 @@ def main() -> None:
 
     result_columns = [
         "model", "n_train", "n_queries", "n_classes", "n_filtered_queries",
+        "n_unreadable_train", "n_unreadable_test",
         "r@1", "r@5", "r@10", "median_r", "mean_r",
         "max_iterations_used", "converged", "convergence_warnings",
     ]
