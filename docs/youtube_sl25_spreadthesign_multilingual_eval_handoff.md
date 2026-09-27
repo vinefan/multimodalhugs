@@ -342,6 +342,7 @@ Smoke 通过后，可让 metadata 和 GPU 任务自动按成功依赖衔接：
 ```bash
 cd /home/faxu/multimodalhugs
 
+
 PREP_JOB=$(sbatch --parsable \
   scripts/slurm/signclip_prepare_spreadthesign_multilingual_eval.sh)
 
@@ -386,3 +387,55 @@ python -m json.tool \
 4. 检查每个语言对 `kept_rows`、`unique_poses`、`unique_texts` 和拒绝原因。
 5. 让依赖任务顺序执行 7 个语言对的完整 evaluation。
 6. 核对 pair-level 结果以及 `summary.json` 中的 macro/weighted 汇总。
+
+## 2026-09-27/28 execution record
+
+代码提交：
+
+```text
+13a6343 Add multilingual SpreadTheSign evaluation pipeline
+```
+
+### Smoke run
+
+| Item | Value |
+| --- | --- |
+| Metadata job | `6567045` (`COMPLETED`, exit `0:0`) |
+| Evaluation job | `6567046` (`COMPLETED`, exit `0:0`) |
+| Pair | `<en> <ase>` |
+| Samples | 32 selected, 32 readable/kept, 0 rejected |
+| Unique texts | 32 |
+| Metadata root | `/home/faxu/scratch/signclip/metadata/spreadthesign_multilingual_smoke_20260927_192342` |
+| Results root | `/home/faxu/scratch/signclip/evals/spreadthesign_multilingual_smoke_20260927_192342` |
+
+Smoke retrieval result：
+
+| Metric | Value |
+| --- | ---: |
+| R@1 | 40.625% |
+| R@5 | 71.875% |
+| R@10 | 81.250% |
+| MedianR | 2.0 |
+| MeanR | 6.1875 |
+| eval loss | 2.7061 |
+
+### Full run
+
+| Item | Value |
+| --- | --- |
+| Full metadata job | `6567063` |
+| Full evaluation job | `6567064`, dependency `afterok:6567063` |
+| Metadata root | `/home/faxu/scratch/signclip/metadata/spreadthesign_multilingual_youtube_sl25` |
+| Results root | `/home/faxu/scratch/signclip/evals/spreadthesign_multilingual_zeroshot_youtube_sl25_checkpoint36000` |
+
+完整任务的依赖链为：
+
+```text
+6567045 smoke metadata
+  -> 6567046 smoke evaluation
+    -> 6567063 full metadata
+      -> 6567064 full seven-pair evaluation
+```
+
+记录时，前两个 smoke 任务已经成功结束，`6567063` 正在运行，`6567064`
+处于 dependency 等待状态。
